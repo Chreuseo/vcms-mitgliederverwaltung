@@ -38,15 +38,15 @@ model BasePerson {
   land2                    String?   @db.VarChar(255)
   telefon2                 String?   @db.VarChar(255)
   datum_adresse2_stand     DateTime? @db.Date
-  region1                  Int?      @db.Int
-  region2                  Int?      @db.Int
+  region1                  Int?
+  region2                  Int?
   mobiltelefon             String?   @db.VarChar(255)
   email                    String?   @unique @db.VarChar(255)
   skype                    String?   @db.VarChar(255)
   webseite                 String?   @db.VarChar(255)
   datum_geburtstag         DateTime? @db.Date
   beruf                    String?   @db.VarChar(255)
-  heirat_partner           Int?      @db.Int
+  heirat_partner           Int?
   heirat_datum             DateTime? @db.Date
   tod_datum                DateTime? @db.Date
   tod_ort                  String?   @db.VarChar(255)
@@ -60,7 +60,7 @@ model BasePerson {
   semester_fusion          String?   @db.VarChar(10)
   austritt_datum           DateTime? @db.Date
   spitzname                String?   @db.VarChar(255)
-  leibmitglied             Int?      @db.Int
+  leibmitglied             Int?
   anschreiben_zusenden     Boolean   @default(true)
   spendenquittung_zusenden Boolean   @default(true)
   vita                     String?   @db.Text
