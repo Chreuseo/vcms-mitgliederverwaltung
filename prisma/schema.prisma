@@ -1,0 +1,74 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model BasePerson {
+  id                       Int       @id @default(autoincrement())
+  anrede                   String?   @db.VarChar(255)
+  titel                    String?   @db.VarChar(255)
+  rang                     String?   @db.VarChar(255)
+  vorname                  String?   @db.VarChar(255)
+  praefix                  String?   @db.VarChar(255)
+  name                     String?   @db.VarChar(255)
+  suffix                   String?   @db.VarChar(255)
+  geburtsname              String?   @db.VarChar(255)
+  zusatz1                  String?   @db.VarChar(255)
+  strasse1                 String?   @db.VarChar(255)
+  ort1                     String?   @db.VarChar(255)
+  plz1                     String?   @db.VarChar(255)
+  land1                    String?   @db.VarChar(255)
+  telefon1                 String?   @db.VarChar(255)
+  datum_adresse1_stand     DateTime? @db.Date
+  zusatz2                  String?   @db.VarChar(255)
+  strasse2                 String?   @db.VarChar(255)
+  ort2                     String?   @db.VarChar(255)
+  plz2                     String?   @db.VarChar(255)
+  land2                    String?   @db.VarChar(255)
+  telefon2                 String?   @db.VarChar(255)
+  datum_adresse2_stand     DateTime? @db.Date
+  region1                  Int?      @db.Int
+  region2                  Int?      @db.Int
+  mobiltelefon             String?   @db.VarChar(255)
+  email                    String?   @unique @db.VarChar(255)
+  skype                    String?   @db.VarChar(255)
+  webseite                 String?   @db.VarChar(255)
+  datum_geburtstag         DateTime? @db.Date
+  beruf                    String?   @db.VarChar(255)
+  heirat_partner           Int?      @db.Int
+  heirat_datum             DateTime? @db.Date
+  tod_datum                DateTime? @db.Date
+  tod_ort                  String?   @db.VarChar(255)
+  gruppe                   String    @default("F") @db.Char(1)
+  datum_gruppe_stand       DateTime? @db.Date
+  status                   String?   @db.VarChar(255)
+  semester_reception       String?   @db.VarChar(10)
+  semester_promotion       String?   @db.VarChar(10)
+  semester_philistrierung  String?   @db.VarChar(10)
+  semester_aufnahme        String?   @db.VarChar(10)
+  semester_fusion          String?   @db.VarChar(10)
+  austritt_datum           DateTime? @db.Date
+  spitzname                String?   @db.VarChar(255)
+  leibmitglied             Int?      @db.Int
+  anschreiben_zusenden     Boolean   @default(true)
+  spendenquittung_zusenden Boolean   @default(true)
+  vita                     String?   @db.Text
+  bemerkung                String?   @db.VarChar(255)
+  password_hash            String?   @db.VarChar(255)
+  validationkey            String?   @db.VarChar(255)
+  keycloak_id              String?   @unique @db.VarChar(190)
+  hausvereinsmitglied      Boolean?  @db.Boolean
+
+  @@map("base_person")
+}
