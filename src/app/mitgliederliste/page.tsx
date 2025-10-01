@@ -4,14 +4,12 @@ import Link from "next/link";
 
 // Spaltenliste synchron zu API ALL_FIELDS (Subset für UI optional erweiterbar)
 const ALL_FIELDS = [
-  "name","strasse1","plz1","ort1","datum_geburtstag","email","telefon1","mobiltelefon","gruppe","status"
+  "id","anrede","titel","rang","vorname","praefix","name","suffix","geburtsname","zusatz1","strasse1","ort1","plz1","land1","telefon1","datum_adresse1_stand","zusatz2","strasse2","ort2","plz2","land2","telefon2","datum_adresse2_stand","region1","region2","mobiltelefon","email","skype","webseite","datum_geburtstag","beruf","heirat_partner","heirat_datum","tod_datum","tod_ort","gruppe","datum_gruppe_stand","status","semester_reception","semester_promotion","semester_philistrierung","semester_aufnahme","semester_fusion","austritt_datum","spitzname","anschreiben_zusenden","spendenquittung_zusenden","vita","bemerkung","password_hash","validationkey","keycloak_id","hausvereinsmitglied"
 ] as const;
 
 type Field = typeof ALL_FIELDS[number];
 
-const DEFAULT_FIELDS: Field[] = [
-  "name","strasse1","plz1","ort1","datum_geburtstag","email"
-];
+const DEFAULT_FIELDS: Field[] = [...ALL_FIELDS];
 
 interface PersonRow {
   id: number;
@@ -24,17 +22,21 @@ interface ApiResponse {
   data?: PersonRow[];
 }
 
+const DATE_FIELDS = new Set([
+  "datum_adresse1_stand","datum_adresse2_stand","datum_geburtstag","heirat_datum","tod_datum","datum_gruppe_stand","austritt_datum"
+]);
+const BOOL_FIELDS = new Set(["anschreiben_zusenden","spendenquittung_zusenden","hausvereinsmitglied"]);
+
 const LABELS: Record<string,string> = {
-  name: "Name",
-  strasse1: "Straße",
-  plz1: "PLZ",
-  ort1: "Ort",
+  name: "Name (Nachname)",
+  vorname: "Vorname",
   datum_geburtstag: "Geburtstag",
-  email: "E-Mail",
-  telefon1: "Telefon",
-  mobiltelefon: "Mobil",
-  gruppe: "Gruppe",
-  status: "Status",
+  datum_adresse1_stand: "Adr1 Stand",
+  datum_adresse2_stand: "Adr2 Stand",
+  datum_gruppe_stand: "Gruppe Stand",
+  anschreiben_zusenden: "Anschreiben",
+  spendenquittung_zusenden: "Spendenquittung",
+  hausvereinsmitglied: "Hausverein",
 };
 
 export default function MitgliederlistePage() {
@@ -99,7 +101,7 @@ export default function MitgliederlistePage() {
           <thead>
             <tr>
               {selected.map(f => (
-                <th key={f} className="text-left px-2 py-1 border-b border-black/10 dark:border-white/10">{LABELS[f] || f}</th>
+                <th key={f} className="text-left px-2 py-1 border-b border-black/10 dark:border-white/10 whitespace-nowrap">{LABELS[f] || f.replace(/_/g," ")}</th>
               ))}
             </tr>
           </thead>
@@ -117,10 +119,17 @@ export default function MitgliederlistePage() {
                     );
                   }
                   let val = row[f];
-                  if (f === "datum_geburtstag" && val) {
+                  if (val == null) return <td key={f} className="px-2 py-1 whitespace-nowrap"></td>;
+                  if (DATE_FIELDS.has(f) && val) {
                     try { val = new Date(String(val)).toLocaleDateString("de-DE"); } catch {}
                   }
-                  return <td key={f} className="px-2 py-1 whitespace-nowrap">{val == null ? "" : String(val)}</td>;
+                  if (BOOL_FIELDS.has(f)) {
+                    val = val ? "✓" : "";
+                  }
+                  if (typeof val === "string" && val.length > 60) {
+                    val = val.slice(0,57)+"…";
+                  }
+                  return <td key={f} className="px-2 py-1 whitespace-nowrap">{String(val)}</td>;
                 })}
               </tr>
             ))}

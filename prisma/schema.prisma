@@ -72,3 +72,17 @@ model BasePerson {
 
   @@map("base_person")
 }
+
+model BaseStatus {
+  bezeichnung  String  @id @db.VarChar(255)
+  beschreibung String? @db.VarChar(255)
+
+  @@map("base_status")
+}
+
+model BaseGruppe {
+  bezeichnung  String  @id @db.Char(1)
+  beschreibung String? @db.VarChar(255)
+
+  @@map("base_gruppe")
+}
