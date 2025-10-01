@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { DATE_FIELDS, BOOLEAN_FIELDS, DEFAULT_EDIT_FIELDS } from "@/lib/mitglieder/constants";
 
 interface Person {
   id: number;
@@ -15,14 +16,6 @@ interface LoadResult {
   groupOptions?: { bezeichnung: string; beschreibung: string | null }[];
   error?: string;
 }
-
-const DATE_FIELDS = new Set([
-  "datum_adresse1_stand","datum_adresse2_stand","datum_geburtstag","heirat_datum","tod_datum","datum_gruppe_stand","austritt_datum"
-]);
-const BOOLEAN_FIELDS = new Set([
-  "anschreiben_zusenden","spendenquittung_zusenden","hausvereinsmitglied"
-]);
-const DEFAULT_EDIT_FIELDS: string[] = ["vorname", "name", "email", "strasse1", "plz1", "ort1", "telefon1", "mobiltelefon", "datum_geburtstag", "gruppe", "status", "hausvereinsmitglied", "semester_reception", "semester_promotion", "semester_philistrierung", "semester_aufnahme"];
 
 function formatDateInput(value: unknown): string {
   if (!value) return "";

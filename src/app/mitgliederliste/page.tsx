@@ -1,14 +1,9 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ALL_FIELDS, Field, DATE_FIELDS, BOOLEAN_FIELDS, FIELD_LABELS } from "@/lib/mitglieder/constants";
 
-// Spaltenliste synchron zu API ALL_FIELDS (Subset für UI optional erweiterbar)
-const ALL_FIELDS = [
-  "id","anrede","titel","rang","vorname","praefix","name","suffix","geburtsname","zusatz1","strasse1","ort1","plz1","land1","telefon1","datum_adresse1_stand","zusatz2","strasse2","ort2","plz2","land2","telefon2","datum_adresse2_stand","region1","region2","mobiltelefon","email","skype","webseite","datum_geburtstag","beruf","heirat_partner","heirat_datum","tod_datum","tod_ort","gruppe","datum_gruppe_stand","status","semester_reception","semester_promotion","semester_philistrierung","semester_aufnahme","semester_fusion","austritt_datum","spitzname","anschreiben_zusenden","spendenquittung_zusenden","vita","bemerkung","password_hash","validationkey","keycloak_id","hausvereinsmitglied"
-] as const;
-
-type Field = typeof ALL_FIELDS[number];
-
+// Standardauswahl für UI (beibehaltener lokaler Default – unterscheidet sich von DEFAULT_LIST_FIELDS)
 const DEFAULT_FIELDS: Field[] = ["name","strasse1","plz1","ort1","email"];
 
 interface PersonRow {
@@ -25,23 +20,6 @@ interface ApiResponse {
 }
 
 interface MetaOption { bezeichnung: string; beschreibung: string | null }
-
-const DATE_FIELDS = new Set([
-  "datum_adresse1_stand","datum_adresse2_stand","datum_geburtstag","heirat_datum","tod_datum","datum_gruppe_stand","austritt_datum"
-]);
-const BOOL_FIELDS = new Set(["anschreiben_zusenden","spendenquittung_zusenden","hausvereinsmitglied"]);
-
-const LABELS: Record<string,string> = {
-  name: "Name (Nachname)",
-  vorname: "Vorname",
-  datum_geburtstag: "Geburtstag",
-  datum_adresse1_stand: "Adr1 Stand",
-  datum_adresse2_stand: "Adr2 Stand",
-  datum_gruppe_stand: "Gruppe Stand",
-  anschreiben_zusenden: "Anschreiben",
-  spendenquittung_zusenden: "Spendenquittung",
-  hausvereinsmitglied: "Hausverein",
-};
 
 export default function MitgliederlistePage() {
   const [selected, setSelected] = useState<Field[]>(DEFAULT_FIELDS);
@@ -120,7 +98,7 @@ export default function MitgliederlistePage() {
             <fieldset className="p-3 flex flex-wrap gap-4 text-sm max-h-72 overflow-auto">
               {ALL_FIELDS.map(f => (
                 <label key={f} className="flex items-center gap-1">
-                  <input type="checkbox" checked={selected.includes(f)} onChange={()=>toggle(f)} className="accent-blue-600" /> {(LABELS[f] || f.replace(/_/g,' '))}
+                  <input type="checkbox" checked={selected.includes(f)} onChange={()=>toggle(f)} className="accent-blue-600" /> {(FIELD_LABELS[f] || f.replace(/_/g,' '))}
                 </label>
               ))}
             </fieldset>
@@ -194,7 +172,7 @@ export default function MitgliederlistePage() {
           <thead>
             <tr>
               {selected.map(f => (
-                <th key={f} className="text-left px-2 py-1 border-b border-black/10 dark:border-white/10 whitespace-nowrap">{LABELS[f] || f.replace(/_/g," ")}</th>
+                <th key={f} className="text-left px-2 py-1 border-b border-black/10 dark:border-white/10 whitespace-nowrap">{FIELD_LABELS[f] || f.replace(/_/g," ")}</th>
               ))}
             </tr>
           </thead>
@@ -215,7 +193,7 @@ export default function MitgliederlistePage() {
                   if (DATE_FIELDS.has(f) && val) {
                     try { val = new Date(String(val)).toLocaleDateString("de-DE"); } catch {}
                   }
-                  if (BOOL_FIELDS.has(f)) {
+                  if (BOOLEAN_FIELDS.has(f)) {
                     val = val ? "✓" : "";
                   }
                   if (typeof val === "string" && val.length > 60) {
