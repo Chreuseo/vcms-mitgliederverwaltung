@@ -173,7 +173,7 @@ export default function MitgliedEditPage() {
                       <select
                         value={String(val ?? '')}
                         onChange={e => onChange(f, e.target.value)}
-                        className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
+                        className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-background text-foreground"
                       >
                         <option value="" />
                         {groupOptions?.map(g => (
@@ -190,7 +190,7 @@ export default function MitgliedEditPage() {
                       <select
                         value={String(val ?? '')}
                         onChange={e => onChange(f, e.target.value)}
-                        className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
+                        className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-background text-foreground"
                       >
                         <option value="" />
                         {statusOptions?.map(s => (
@@ -236,7 +236,7 @@ export default function MitgliedEditPage() {
                         value={String(val ?? "")}
                         onChange={e => onChange(f, e.target.value)}
                         rows={5}
-                        className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent resize-vertical"
+                        className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-background text-foreground resize-vertical"
                       />
                     </label>
                   );
@@ -278,7 +278,7 @@ export default function MitgliedEditPage() {
                             setSemesterDraft(prev => ({ ...prev, [f]: { type: newType, year } }));
                             commitIfComplete(newType, year);
                           }}
-                          className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
+                          className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-background text-foreground"
                         >
                           <option value="">-</option>
                           <option value="WS">WS</option>
@@ -295,7 +295,7 @@ export default function MitgliedEditPage() {
                             commitIfComplete(semType, rawYear);
                           }}
                           placeholder="Jahr"
-                          className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent w-24"
+                          className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-background text-foreground w-24"
                         />
                       </div>
                       <div className="text-xs text-foreground/50">
@@ -311,7 +311,7 @@ export default function MitgliedEditPage() {
                       type={isDate ? "date" : "text"}
                       value={isDate ? formatDateInput(val) : String(val ?? "")}
                       onChange={e => onChange(f, isDate ? e.target.value : e.target.value)}
-                      className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
+                      className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-background text-foreground"
                     />
                   </label>
                 );

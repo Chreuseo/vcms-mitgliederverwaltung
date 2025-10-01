@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
+/* Add light and dark mode variables */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background-light: #ffffff;
+  --foreground-light: #171717;
+  --background-dark: #0a0a0a;
+  --foreground-dark: #ededed;
+  --background: var(--background-light);
+  --foreground: var(--foreground-light);
+    --font-geist-sans: 'Geist Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-geist-mono: 'Geist Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+}
+
+[data-theme="dark"] {
+  --background: var(--background-dark);
+  --foreground: var(--foreground-dark);
 }
 
 @theme inline {
@@ -12,15 +24,37 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Add styles for highlighting inputs and table rows in both light and dark modes */
+input, textarea, select {
+  background-color: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--foreground-light);
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid var(--foreground-light);
+  outline-offset: 2px;
+}
+
+/* Update table row styles for light and dark modes */
+tr:nth-child(odd) {
+  background-color: var(--background-light);
+}
+
+tr:nth-child(even) {
+  background-color: #f7f7f7; /* Light gray for light mode */
+}
+
+[data-theme="dark"] tr:nth-child(odd) {
+  background-color: var(--background-dark);
+}
+
+[data-theme="dark"] tr:nth-child(even) {
+  background-color: #1a1a1a; /* Dark gray for dark mode */
 }

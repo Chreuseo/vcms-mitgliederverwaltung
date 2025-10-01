@@ -82,6 +82,7 @@ export default function MitgliederlistePage() {
   };
 
   return (
+    <div className="bg-background text-foreground">
     <section className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Mitgliederliste</h1>
@@ -178,7 +179,7 @@ export default function MitgliederlistePage() {
           </thead>
           <tbody>
             {data.map(row => (
-              <tr key={row.id} className="odd:bg-black/5 dark:odd:bg-white/5">
+              <tr key={row.id} className="odd:bg-foreground-light even:bg-background">
                 {selected.map(f => {
                   if (f === "name") {
                     const display = `${row.vorname || ""} ${row.name || ""}`.trim() || `#${row.id}`;
@@ -210,5 +211,6 @@ export default function MitgliederlistePage() {
         </table>
       </div>
     </section>
+    </div>
   );
 }

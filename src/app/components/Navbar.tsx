@@ -2,11 +2,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
 
 export default function Navbar() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const isActive = (href: string) => pathname === href;
+
+  const [theme, setTheme] = useState("light");
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));
+  };
 
   return (
     <header className="w-full border-b border-black/10 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur sticky top-0 z-50">
@@ -28,7 +39,13 @@ export default function Navbar() {
             Export
           </Link>
         </div>
-        <div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={toggleTheme}
+            className="text-sm rounded-md border border-black/10 dark:border-white/20 px-3 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            {theme === "light" ? "Dark Mode" : "Light Mode"}
+          </button>
           {status === "loading" ? (
             <span className="text-sm text-foreground/70">…</span>
           ) : session ? (
@@ -51,4 +68,3 @@ export default function Navbar() {
     </header>
   );
 }
-
