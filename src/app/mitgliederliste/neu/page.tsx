@@ -7,7 +7,7 @@ import MemberFieldsEditor, { Option } from "../components/MemberFields";
 interface CreateResponse { data?: { id?: number }; error?: string; keycloak?: { id: string; created: boolean } }
 
 export default function NeuesMitgliedPage() {
-  const [person, setPerson] = useState<Record<string, unknown>>({});
+  const [person, setPerson] = useState<Record<string, unknown>>({ hausvereinsmitglied: false });
   const [visibleFields] = useState<string[]>(DEFAULT_EDIT_FIELDS);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
