@@ -1,6 +1,6 @@
 "use client";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 
 interface Person {
@@ -30,8 +30,7 @@ function formatDateInput(value: unknown): string {
 
 export default function MitgliedEditPage() {
   const params = useParams();
-  const id = typeof params === "object" && params && "id" in params ? String((params as any).id) : "";
-  const router = useRouter();
+  const id = typeof params === "object" && params && "id" in params ? String(params.id) : "";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +43,7 @@ export default function MitgliedEditPage() {
     try {
       const res = await fetch(`/api/mitglieder/${id}`, { cache: "no-store" });
       const json: LoadResult = await res.json().catch(()=>({ error: "Unbekannte Antwort" }));
-      if (!res.ok) throw new Error(json.error || res.statusText);
+      if (!res.ok) { setError(json.error || res.statusText); return; }
       setPerson(json.data || null);
       setEditable(json.editable || []);
     } catch (e) {
@@ -61,15 +60,13 @@ export default function MitgliedEditPage() {
     setPerson(p => p ? { ...p, [field]: value } : p);
   };
 
-  const canEdit = useMemo(() => (f: string) => editable.includes(f), [editable]);
-
   const save = async () => {
     if (!Object.keys(dirty).length) return;
     setSaving(true); setError(null);
     try {
       const res = await fetch(`/api/mitglieder/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(dirty) });
       const json = await res.json().catch(()=>({ error: "Unbekannte Antwort" }));
-      if (!res.ok) throw new Error(json.error || res.statusText);
+      if (!res.ok) { setError(json.error || res.statusText); return; }
       setDirty({});
       setPerson(json.data);
     } catch (e) {
@@ -100,7 +97,7 @@ export default function MitgliedEditPage() {
               <span className="font-medium capitalize">{f.replace(/_/g, " ")}</span>
               <input
                 type={isDate ? "date" : "text"}
-                value={isDate ? formatDateInput(val) : (val ?? "")}
+                value={isDate ? formatDateInput(val) : String(val ?? "")}
                 onChange={e => onChange(f, isDate ? e.target.value : e.target.value)}
                 className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
               />

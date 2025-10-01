@@ -14,11 +14,9 @@ const EDITABLE_FIELDS = [
 
 type EditableField = typeof EDITABLE_FIELDS[number];
 
-type ReqLike = Pick<NextRequest, "cookies" | "headers"> & { [k: string]: unknown };
-
 async function authorize(req: NextRequest) {
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
-  const token = await getToken({ req: req as unknown as ReqLike, secret }) as ExtendedJWT | null; // Cast auf ReqLike statt any
+  const token = await getToken({ req, secret }) as ExtendedJWT | null;
   if (!token) return { ok: false, status: 401, message: "Nicht eingeloggt" } as const;
   const roles: string[] = token.user?.roles || [];
   if (!ROLE) return { ok: false, status: 500, message: "Rollen-Variable fehlt" } as const;
