@@ -18,6 +18,7 @@ const DEFAULT_FIELDS: Field[] = [
   "id","vorname","name","strasse1","plz1","ort1","datum_geburtstag","email"
 ];
 
+// Stelle sicher, dass "vorname" immer in der Abfrage enthalten ist
 function parseFieldsParam(param: string | null): Field[] {
   if (!param) return DEFAULT_FIELDS;
   const requested = param.split(",").map(p => p.trim()).filter(Boolean);
@@ -25,14 +26,15 @@ function parseFieldsParam(param: string | null): Field[] {
   for (const f of requested) {
     if ((ALL_FIELDS as readonly string[]).includes(f)) valid.push(f as Field);
   }
-  // Immer id für Links
+  // Immer id und vorname für Links und Anzeige
   if (!valid.includes("id")) valid.unshift("id");
+  if (!valid.includes("vorname")) valid.push("vorname");
   return valid.length ? valid : DEFAULT_FIELDS;
 }
 
 async function authorize(req: NextRequest) {
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
-  const token = await getToken({ req: req as any, secret }) as ExtendedJWT | null; // req Casting nötig wegen Next types
+  const token = await getToken({ req, secret }) as ExtendedJWT | null; // req Casting entfernt
   if (!token) return { ok: false, status: 401, message: "Nicht eingeloggt" } as const;
   const roles: string[] = token.user?.roles || [];
   if (!ROLE) return { ok: false, status: 500, message: "Rollen-Umgebungsvariable fehlt" } as const;

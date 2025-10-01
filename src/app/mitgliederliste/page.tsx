@@ -4,13 +4,13 @@ import Link from "next/link";
 
 // Spaltenliste synchron zu API ALL_FIELDS (Subset für UI optional erweiterbar)
 const ALL_FIELDS = [
-  "vorname","name","strasse1","plz1","ort1","datum_geburtstag","email","telefon1","mobiltelefon","gruppe","status"
+  "name","strasse1","plz1","ort1","datum_geburtstag","email","telefon1","mobiltelefon","gruppe","status"
 ] as const;
 
 type Field = typeof ALL_FIELDS[number];
 
 const DEFAULT_FIELDS: Field[] = [
-  "vorname","name","strasse1","plz1","ort1","datum_geburtstag","email"
+  "name","strasse1","plz1","ort1","datum_geburtstag","email"
 ];
 
 interface PersonRow {
@@ -18,8 +18,13 @@ interface PersonRow {
   [k: string]: unknown;
 }
 
+// Definiere einen Typ für die JSON-Antwort
+interface ApiResponse {
+  error?: string;
+  data?: PersonRow[];
+}
+
 const LABELS: Record<string,string> = {
-  vorname: "Vorname",
   name: "Name",
   strasse1: "Straße",
   plz1: "PLZ",
@@ -49,10 +54,10 @@ export default function MitgliederlistePage() {
     try {
       const res = await fetch(`/api/mitglieder?fields=${encodeURIComponent(queryFields)}`, { cache: "no-store" });
       if (!res.ok) {
-        const j = await res.json().catch(()=>({} as any));
-        throw new Error((j as any).error || res.statusText);
+        const j: ApiResponse = await res.json().catch(() => ({}));
+        throw new Error(j.error || res.statusText);
       }
-      const json = await res.json();
+      const json: ApiResponse = await res.json();
       setData(json.data || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -102,10 +107,7 @@ export default function MitgliederlistePage() {
             {data.map(row => (
               <tr key={row.id} className="odd:bg-black/5 dark:odd:bg-white/5">
                 {selected.map(f => {
-                  let val = row[f];
-                  if (f === "datum_geburtstag" && val) {
-                    try { val = new Date(String(val)).toLocaleDateString("de-DE"); } catch {}
-                  }
+                  // Passe die Tabellendarstellung an, um Vorname und Name zusammen zu rendern
                   if (f === "name") {
                     const display = `${row.vorname || ""} ${row.name || ""}`.trim() || `#${row.id}`;
                     return (
@@ -113,6 +115,10 @@ export default function MitgliederlistePage() {
                         <Link href={`/mitgliederliste/${row.id}`} className="text-blue-600 hover:underline">{display}</Link>
                       </td>
                     );
+                  }
+                  let val = row[f];
+                  if (f === "datum_geburtstag" && val) {
+                    try { val = new Date(String(val)).toLocaleDateString("de-DE"); } catch {}
                   }
                   return <td key={f} className="px-2 py-1 whitespace-nowrap">{val == null ? "" : String(val)}</td>;
                 })}
