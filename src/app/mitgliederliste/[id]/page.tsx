@@ -22,6 +22,7 @@ const DATE_FIELDS = new Set([
 const BOOLEAN_FIELDS = new Set([
   "anschreiben_zusenden","spendenquittung_zusenden","hausvereinsmitglied"
 ]);
+const DEFAULT_EDIT_FIELDS: string[] = ["vorname", "name", "email", "strasse1", "plz1", "ort1"];
 
 function formatDateInput(value: unknown): string {
   if (!value) return "";
@@ -48,6 +49,8 @@ export default function MitgliedEditPage() {
   const [groupOptions, setGroupOptions] = useState<LoadResult["groupOptions"]>([]);
   const [showFilterBox, setShowFilterBox] = useState(true);
   const [showFieldsBox, setShowFieldsBox] = useState(true);
+  const [selectedEditFields, setSelectedEditFields] = useState<string[]>(DEFAULT_EDIT_FIELDS);
+  const [showEditFieldsBox, setShowEditFieldsBox] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -87,6 +90,10 @@ export default function MitgliedEditPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleEditField = (field: string) => {
+    setSelectedEditFields(prev => prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]);
   };
 
   if (loading) return <div className="p-4 text-sm">Lädt…</div>;
@@ -144,13 +151,35 @@ export default function MitgliedEditPage() {
         </div>
 
         <div className="border rounded-md">
+          <button type="button" onClick={() => setShowEditFieldsBox(s => !s)} className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium">
+            <span>Felderauswahl</span>
+            <span>{showEditFieldsBox ? '−' : '+'}</span>
+          </button>
+          {showEditFieldsBox && (
+            <fieldset className="p-3 flex flex-wrap gap-4 text-sm max-h-72 overflow-auto">
+              {editable.map(f => (
+                <label key={f} className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedEditFields.includes(f)}
+                    onChange={() => toggleEditField(f)}
+                    className="accent-blue-600"
+                  />
+                  <span>{f.replace(/_/g, ' ')}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+        </div>
+
+        <div className="border rounded-md">
           <button type="button" onClick={()=>setShowFieldsBox(s=>!s)} className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium">
             <span>Felder</span>
             <span>{showFieldsBox ? '−' : '+'}</span>
           </button>
           {showFieldsBox && (
             <div className="grid gap-4 p-3 sm:grid-cols-2 lg:grid-cols-3">
-              {editable.filter(f => !['gruppe','status','hausvereinsmitglied'].includes(f)).map(f => {
+              {editable.filter(f => selectedEditFields.includes(f) && !['gruppe','status','hausvereinsmitglied'].includes(f)).map(f => {
                 const val = person[f];
                 if (BOOLEAN_FIELDS.has(f)) {
                   const checked = Boolean(val);
