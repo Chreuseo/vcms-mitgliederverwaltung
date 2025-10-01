@@ -5,7 +5,13 @@ import Link from "next/link";
 import { DEFAULT_EDIT_FIELDS } from "@/lib/mitglieder/constants";
 import MemberFieldsEditor from "../components/MemberFields";
 
-interface Person { id: number; [k: string]: any }
+interface Person {
+  id: number;
+  vorname?: string;
+  name?: string;
+  email?: string;
+  [key: string]: unknown; // Erlaubt zusätzliche Felder mit unbekannten Typen
+}
 interface LoadResult { data?: Person; editable?: string[]; statusOptions?: { bezeichnung: string; beschreibung: string | null }[]; groupOptions?: { bezeichnung: string; beschreibung: string | null }[]; error?: string; }
 
 export default function MitgliedEditPage() {
