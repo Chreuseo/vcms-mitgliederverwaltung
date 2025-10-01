@@ -22,7 +22,7 @@ const DATE_FIELDS = new Set([
 const BOOLEAN_FIELDS = new Set([
   "anschreiben_zusenden","spendenquittung_zusenden","hausvereinsmitglied"
 ]);
-const DEFAULT_EDIT_FIELDS: string[] = ["vorname", "name", "email", "strasse1", "plz1", "ort1"];
+const DEFAULT_EDIT_FIELDS: string[] = ["vorname", "name", "email", "strasse1", "plz1", "ort1", "telefon1", "mobiltelefon", "datum_geburtstag", "gruppe", "status", "hausvereinsmitglied"];
 
 function formatDateInput(value: unknown): string {
   if (!value) return "";
@@ -47,7 +47,7 @@ export default function MitgliedEditPage() {
   const [dirty, setDirty] = useState<Record<string, unknown>>({});
   const [statusOptions, setStatusOptions] = useState<LoadResult["statusOptions"]>([]);
   const [groupOptions, setGroupOptions] = useState<LoadResult["groupOptions"]>([]);
-  const [showFilterBox, setShowFilterBox] = useState(true);
+  const [showFilterBox, setShowFilterBox] = useState(false);
   const [showFieldsBox, setShowFieldsBox] = useState(true);
   const [selectedEditFields, setSelectedEditFields] = useState<string[]>(DEFAULT_EDIT_FIELDS);
   const [showEditFieldsBox, setShowEditFieldsBox] = useState(false);
@@ -110,47 +110,6 @@ export default function MitgliedEditPage() {
 
       <div className="space-y-4">
         <div className="border rounded-md">
-          <button type="button" onClick={()=>setShowFilterBox(s=>!s)} className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium">
-            <span>Filter (Gruppe / Status / Hausvereinsmitglied)</span>
-            <span>{showFilterBox ? '−' : '+'}</span>
-          </button>
-          {showFilterBox && (
-            <div className="p-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-              <label className="flex flex-col gap-1">
-                <span className="font-medium">Gruppe</span>
-                <select
-                  value={String(person.gruppe ?? '')}
-                  onChange={e=>onChange('gruppe', e.target.value)}
-                  className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
-                >
-                  <option value="" />
-                  {groupOptions?.map(g => (
-                    <option key={g.bezeichnung} value={g.bezeichnung}>{g.beschreibung || g.bezeichnung}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="font-medium">Status</span>
-                <select
-                  value={String(person.status ?? '')}
-                  onChange={e=>onChange('status', e.target.value)}
-                  className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
-                >
-                  <option value="" />
-                  {statusOptions?.map(s => (
-                    <option key={s.bezeichnung} value={s.bezeichnung}>{s.bezeichnung}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-2 mt-6">
-                <input type="checkbox" className="accent-blue-600" checked={Boolean(person.hausvereinsmitglied)} onChange={e=>onChange('hausvereinsmitglied', e.target.checked)} />
-                <span className="font-medium">Hausvereinsmitglied</span>
-              </label>
-            </div>
-          )}
-        </div>
-
-        <div className="border rounded-md">
           <button type="button" onClick={() => setShowEditFieldsBox(s => !s)} className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium">
             <span>Felderauswahl</span>
             <span>{showEditFieldsBox ? '−' : '+'}</span>
@@ -179,8 +138,55 @@ export default function MitgliedEditPage() {
           </button>
           {showFieldsBox && (
             <div className="grid gap-4 p-3 sm:grid-cols-2 lg:grid-cols-3">
-              {editable.filter(f => selectedEditFields.includes(f) && !['gruppe','status','hausvereinsmitglied'].includes(f)).map(f => {
+              {editable.filter(f => selectedEditFields.includes(f)).map(f => {
                 const val = person[f];
+                if (f === "gruppe") {
+                  return (
+                    <label key={f} className="flex flex-col text-sm gap-1">
+                      <span className="font-medium">Gruppe</span>
+                      <select
+                        value={String(val ?? '')}
+                        onChange={e => onChange(f, e.target.value)}
+                        className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
+                      >
+                        <option value="" />
+                        {groupOptions?.map(g => (
+                          <option key={g.bezeichnung} value={g.bezeichnung}>{g.beschreibung || g.bezeichnung}</option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+                if (f === "status") {
+                  return (
+                    <label key={f} className="flex flex-col text-sm gap-1">
+                      <span className="font-medium">Status</span>
+                      <select
+                        value={String(val ?? '')}
+                        onChange={e => onChange(f, e.target.value)}
+                        className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
+                      >
+                        <option value="" />
+                        {statusOptions?.map(s => (
+                          <option key={s.bezeichnung} value={s.bezeichnung}>{s.bezeichnung}</option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+                if (f === "hausvereinsmitglied") {
+                  return (
+                    <label key={f} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(val)}
+                        onChange={e => onChange(f, e.target.checked)}
+                        className="accent-blue-600"
+                      />
+                      <span className="font-medium">Hausvereinsmitglied</span>
+                    </label>
+                  );
+                }
                 if (BOOLEAN_FIELDS.has(f)) {
                   const checked = Boolean(val);
                   return (
