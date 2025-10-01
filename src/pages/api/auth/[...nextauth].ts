@@ -2,6 +2,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import NextAuth, { NextAuthOptions } from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
+import type { User } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 
 const {
     KEYCLOAK_CLIENT_ID,
@@ -22,8 +24,8 @@ async function validateDiscovery(issuerBase: string) {
     let res: Response;
     try {
         res = await fetch(wellKnown);
-    } catch (e: any) {
-        throw new Error(`Failed to fetch ${wellKnown}: ${String(e)}`);
+    } catch (e: unknown) {
+        throw new Error(`Failed to fetch ${wellKnown}: ${e instanceof Error ? e.message : String(e)}`);
     }
     if (!res.ok) {
         const body = await res.text().then((t) => t.slice(0, 400));
@@ -37,12 +39,51 @@ async function validateDiscovery(issuerBase: string) {
     await res.json();
 }
 
-function decode(token: string) {
-    return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+function decode(token: string): unknown {
+    try {
+        return JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64').toString());
+    } catch {
+        return {};
+    }
+}
+
+interface KeycloakDecodedToken {
+  sub?: string;
+  realm_access?: { roles?: string[] };
+  resource_access?: Record<string, unknown>;
+  preferred_username?: string;
+  email?: string;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  email_verified?: boolean;
+}
+
+interface KeycloakSessionUser extends User {
+  sub?: string;
+  roles: string[];
+  realm_access: Record<string, unknown>;
+  resource_access: Record<string, unknown>;
+  preferred_username?: string;
+  given_name?: string;
+  family_name?: string;
+  email_verified?: boolean;
+}
+
+interface MutableToken extends JWT {
+  accessToken?: string;
+  user?: KeycloakSessionUser;
+}
+
+declare module "next-auth" {
+  interface Session {
+    token?: string;
+    user?: KeycloakSessionUser;
+  }
 }
 
 function buildAuthOptions(issuerBase: string): NextAuthOptions {
-    return {
+  return {
         providers: [
             KeycloakProvider({
                 clientId: KEYCLOAK_CLIENT_ID!,
@@ -57,19 +98,21 @@ function buildAuthOptions(issuerBase: string): NextAuthOptions {
         },
         jwt: {},
         callbacks: {
-            async jwt({ token, user, account, profile }) {
-                if (account && account.access_token) {
-                    (token as any).accessToken = account.access_token; // JWT speichern
-                    const decoded = decode(account.access_token);
-                    (token as any).user = {
-                        ...user,
+            async jwt({ token, user, account }) {
+                if (account?.access_token) {
+                    const decoded = decode(account.access_token) as KeycloakDecodedToken;
+                    const mt = token as MutableToken;
+                    const baseUser: Partial<User> = user ?? {};
+                    mt.accessToken = account.access_token;
+                    mt.user = {
+                        ...(baseUser as User),
                         sub: decoded.sub,
-                        roles: decoded.realm_access?.roles || [],
-                        realm_access: decoded.realm_access || {},
-                        resource_access: decoded.resource_access || {},
+                        roles: decoded.realm_access?.roles ?? [],
+                        realm_access: decoded.realm_access ?? {},
+                        resource_access: decoded.resource_access ?? {},
                         preferred_username: decoded.preferred_username,
-                        email: decoded.email,
-                        name: decoded.name,
+                        email: decoded.email ?? baseUser.email,
+                        name: decoded.name ?? baseUser.name ?? undefined,
                         given_name: decoded.given_name,
                         family_name: decoded.family_name,
                         email_verified: decoded.email_verified,
@@ -78,13 +121,14 @@ function buildAuthOptions(issuerBase: string): NextAuthOptions {
                 return token;
             },
             async session({ session, token }) {
-                (session as any).user = (token as any).user;
-                (session as any).token = (token as any).accessToken; // JWT ins Session-Objekt
+                const mt = token as MutableToken;
+                if (mt.user) session.user = mt.user;
+                if (mt.accessToken) session.token = mt.accessToken;
                 return session;
             },
         },
         pages: { signIn: "/auth/signin" },
-    };
+  };
 }
 
 export default async function auth(req: NextApiRequest, res: NextApiResponse) {
@@ -101,10 +145,10 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
 
     try {
         await validateDiscovery(issuer);
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error("Keycloak OIDC discovery failed:", e);
         return res.status(500).json({
-            error: `Failed to fetch Keycloak OIDC discovery at ${issuer}: ${e?.message ?? String(e)}`,
+            error: `Failed to fetch Keycloak OIDC discovery at ${issuer}: ${e instanceof Error ? e.message : String(e)}`,
         });
     }
 
