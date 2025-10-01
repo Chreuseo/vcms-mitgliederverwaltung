@@ -17,9 +17,8 @@ if ((!EFFECTIVE_BASE_URL || !EFFECTIVE_REALM) && ISSUER) {
   if (!EFFECTIVE_REALM && realmMatch) EFFECTIVE_REALM = realmMatch[1];
 }
 
-function debug(msg: string, obj?: any) {
+function debug(msg: string, obj?: Record<string, unknown>) {
   if (process.env.KEYCLOAK_GROUP_SYNC_DEBUG === "1") {
-    // eslint-disable-next-line no-console
     console.log(`[kc-group-sync] ${msg}`, obj || "");
   }
 }
@@ -49,7 +48,7 @@ async function getAdminToken(): Promise<string | null> {
     const json = await resp.json() as Partial<TokenResponse>;
     return json.access_token || null;
   } catch (e) {
-    debug("Token Exception", e);
+    debug("Token Exception", { error: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }

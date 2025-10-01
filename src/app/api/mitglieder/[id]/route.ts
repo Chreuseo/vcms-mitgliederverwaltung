@@ -98,7 +98,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const updated = await prisma.basePerson.update({ where: { id }, data: updateData });
 
     // Gruppenwechsel prüfen und Keycloak synchronisieren
-    let groupSyncDebug: any = undefined;
+    let groupSyncDebug: { skipped?: boolean; reason?: string; oldGroup?: string; newGroup?: string; oldKc?: string | null; newKc?: string | null } | undefined = undefined;
     if (Object.prototype.hasOwnProperty.call(updateData, "gruppe")) {
       const newGroup = updateData.gruppe as string | undefined; // kann undefined sein wenn leer
       const oldGroup = previous.gruppe;
@@ -113,7 +113,6 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         const newKc = map.get(newGroup) || null;
         if (process.env.KEYCLOAK_GROUP_SYNC_DEBUG === "1") {
           groupSyncDebug = { oldGroup, newGroup, oldKc, newKc };
-          // eslint-disable-next-line no-console
           console.log("[kc-group-sync] Wechsel", groupSyncDebug);
         }
         try {
