@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { EDITABLE_FIELDS, DATE_FIELDS, BOOLEAN_FIELDS, INT_FIELDS } from "@/lib/mitglieder/constants";
 import { authorizeMitglieder } from "@/lib/mitglieder/auth";
+import type { Field } from "@/lib/mitglieder/constants";
 
 function parseId(param: string | null): number | null {
   if (!param) return null;
@@ -43,35 +44,36 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   const updateData: Record<string, unknown> = {};
 
   for (const key of Object.keys(incoming)) {
-    if (!EDITABLE_FIELDS.includes(key as keyof typeof incoming)) continue;
-    const value = incoming[key];
+    if (!(EDITABLE_FIELDS as readonly string[]).includes(key)) continue;
+    const field = key as Field;
+    const value = incoming[field];
 
-    if (DATE_FIELDS.has(key)) {
+    if (DATE_FIELDS.has(field)) {
       if (typeof value === "string" && value) {
         const d = new Date(value);
-        updateData[key] = isNaN(d.getTime()) ? null : d;
+        updateData[field] = isNaN(d.getTime()) ? null : d;
       } else if (value instanceof Date) {
-        updateData[key] = value;
+        updateData[field] = value;
       } else if (value == null || value === "") {
-        updateData[key] = null;
+        updateData[field] = null;
       }
       continue;
     }
 
-    if (BOOLEAN_FIELDS.has(key)) {
-      if (typeof value === "boolean") updateData[key] = value; else if (typeof value === "string") updateData[key] = value === "true";
+    if (BOOLEAN_FIELDS.has(field)) {
+      if (typeof value === "boolean") updateData[field] = value; else if (typeof value === "string") updateData[field] = value === "true";
       continue;
     }
 
-    if (INT_FIELDS.has(key)) {
-      if (value == null || value === "") updateData[key] = null; else {
+    if (INT_FIELDS.has(field)) {
+      if (value == null || value === "") updateData[field] = null; else {
         const n = typeof value === "number" ? value : parseInt(String(value), 10);
-        updateData[key] = Number.isNaN(n) ? null : n;
+        updateData[field] = Number.isNaN(n) ? null : n;
       }
       continue;
     }
 
-    switch (key) {
+    switch (field) {
       case "gruppe":
         updateData.gruppe = value == null || value === "" ? undefined : String(value).slice(0,1);
         break;
@@ -79,7 +81,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         updateData.status = value == null || value === "" ? null : String(value);
         break;
       default:
-        updateData[key] = value == null || value === "" ? null : String(value);
+        updateData[field] = value == null || value === "" ? null : String(value);
     }
   }
 

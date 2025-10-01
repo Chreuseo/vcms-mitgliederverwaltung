@@ -44,6 +44,39 @@ export default function MitgliedEditPage() {
   const [showFieldsBox, setShowFieldsBox] = useState(true);
   const [selectedEditFields, setSelectedEditFields] = useState<string[]>(DEFAULT_EDIT_FIELDS);
   const [showEditFieldsBox, setShowEditFieldsBox] = useState(false);
+  // Draft-State für Semesterfelder (Typ + Jahr getrennt, um Deadlocks zu vermeiden)
+  const [semesterDraft, setSemesterDraft] = useState<Record<string, { type: string; year: string }>>({});
+  const [semesterDraftInitialized, setSemesterDraftInitialized] = useState(false);
+
+  // Initialisiere Semester-Drafts einmalig nach Laden
+  useEffect(() => {
+    if (!person || semesterDraftInitialized) return;
+    const map: Record<string, { type: string; year: string }> = {};
+    const semesterFields = [
+      "semester_reception",
+      "semester_promotion",
+      "semester_philistrierung",
+      "semester_aufnahme",
+      "semester_fusion"
+    ];
+    semesterFields.forEach(f => {
+      const raw = String(person[f] ?? "");
+      let type = ""; let year = "";
+      const full = raw.match(/^(WS|SS)(\d{4})(\d{4})?$/);
+      if (full) {
+        type = full[1];
+        year = full[2];
+      } else {
+        const onlyType = raw.match(/^(WS|SS)$/);
+        if (onlyType) type = onlyType[1];
+        const onlyYear = raw.match(/^(\d{4})$/);
+        if (onlyYear) year = onlyYear[1];
+      }
+      map[f] = { type, year };
+    });
+    setSemesterDraft(map);
+    setSemesterDraftInitialized(true);
+  }, [person, semesterDraftInitialized]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -208,27 +241,42 @@ export default function MitgliedEditPage() {
                     </label>
                   );
                 }
-                if (["semester_reception", "semester_promotion", "semester_philistrierung", "semester_aufnahme"].includes(f)) {
-                  const semesterValue = String(val ?? "");
-                  const match = semesterValue.match(/^(WS|SS)(\d{4})(\d{4})?$/);
-                  const semester = match ? match[1] : "";
-                  const year = match ? match[2] : "";
-                  const nextYear = match && match[3] ? match[3] : "";
+                if (["semester_reception", "semester_promotion", "semester_philistrierung", "semester_aufnahme", "semester_fusion"].includes(f)) {
+                  const draft = semesterDraft[f] || { type: "", year: "" };
+                  const { type: semType, year } = draft;
+
+                  const buildEncoded = (t: string, y: string): string => {
+                    if (!t && !y) return "";
+                    if (t === "WS") {
+                      if (y.length === 4) return `WS${y}${Number(y) + 1}`;
+                      return `WS${y}`; // partielle Eingabe sichtbar halten, aber nicht persistieren bis 4 Ziffern
+                    }
+                    if (t === "SS") {
+                      if (y.length === 4) return `SS${y}`;
+                      return `SS${y}`; // partielle Eingabe
+                    }
+                    // Kein Typ gewählt
+                    return y; // nur Jahr (persistieren erst bei 4 Ziffern)
+                  };
+
+                  const commitIfComplete = (t: string, y: string) => {
+                    // Persistiere nur wenn kompletter Zustand oder komplett leer
+                    if ((!t && !y) || (t === "WS" && y.length === 4) || (t === "SS" && y.length === 4)) {
+                      const encoded = buildEncoded(t, y);
+                      onChange(f, encoded || null);
+                    }
+                  };
 
                   return (
                     <label key={f} className="flex flex-col text-sm gap-1">
                       <span className="font-medium capitalize">{f.replace(/_/g, " ")}</span>
                       <div className="flex gap-2 items-center">
                         <select
-                          value={semester}
+                          value={semType}
                           onChange={e => {
-                            const newSemester = e.target.value;
-                            const newValue = newSemester === "WS" && year
-                              ? `${newSemester}${year}${Number(year) + 1}`
-                              : newSemester === "SS" && year
-                              ? `${newSemester}${year}`
-                              : "";
-                            onChange(f, newValue);
+                            const newType = e.target.value;
+                            setSemesterDraft(prev => ({ ...prev, [f]: { type: newType, year } }));
+                            commitIfComplete(newType, year);
                           }}
                           className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
                         >
@@ -237,20 +285,21 @@ export default function MitgliedEditPage() {
                           <option value="SS">SS</option>
                         </select>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={year}
                           onChange={e => {
-                            const newYear = e.target.value;
-                            const newValue = semester === "WS" && newYear
-                              ? `${semester}${newYear}${Number(newYear) + 1}`
-                              : semester === "SS" && newYear
-                              ? `${semester}${newYear}`
-                              : "";
-                            onChange(f, newValue);
+                            const rawYear = e.target.value.replace(/[^0-9]/g, "").slice(0,4);
+                            setSemesterDraft(prev => ({ ...prev, [f]: { type: semType, year: rawYear } }));
+                            commitIfComplete(semType, rawYear);
                           }}
                           placeholder="Jahr"
-                          className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent w-20"
+                          className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent w-24"
                         />
+                      </div>
+                      <div className="text-xs text-foreground/50">
+                        {semType === "WS" && year.length === 4 ? `${semType}${year}${Number(year)+1}` : semType === "SS" && year.length === 4 ? `${semType}${year}` : "WS + Jahr (ergänzt Folgejahr) oder SS + Jahr; Speicherung erst bei vollständiger Eingabe"}
                       </div>
                     </label>
                   );

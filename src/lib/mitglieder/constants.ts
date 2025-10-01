@@ -28,7 +28,7 @@ export const INT_FIELDS = new Set<string>([
 ]);
 
 // Editierbare Felder (id & leibmitglied ausgeschlossen)
-export const EDITABLE_FIELDS = ALL_FIELDS.filter(f => !["id","leibmitglied"].includes(f));
+export const EDITABLE_FIELDS: readonly Field[] = ALL_FIELDS.filter(f => f !== "id" && f !== "leibmitglied") as Field[];
 
 // Labels für UI (nur Abweichungen / verkürzte Titel)
 export const FIELD_LABELS: Record<string,string> = {
