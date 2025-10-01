@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { EDITABLE_FIELDS, DATE_FIELDS, BOOLEAN_FIELDS, INT_FIELDS } from "@/lib/mitglieder/constants";
 import { authorizeMitglieder } from "@/lib/mitglieder/auth";
 import type { Field } from "@/lib/mitglieder/constants";
+import { syncUserGroupChange } from "@/lib/keycloak/groups";
 
 function parseId(param: string | null): number | null {
   if (!param) return null;
@@ -35,6 +36,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
   const id = parseId(idParam);
   if (!id) return NextResponse.json({ error: "Ungültige ID" }, { status: 400 });
+
+  // Alte Person laden um Gruppenänderung zu erkennen
+  const previous = await prisma.basePerson.findUnique({ where: { id }, select: { gruppe: true, keycloak_id: true } });
+  if (!previous) return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
 
   let raw: unknown;
   try { raw = await req.json(); } catch { return NextResponse.json({ error: "Ungültiges JSON" }, { status: 400 }); }
@@ -87,9 +92,45 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
   if (!Object.keys(updateData).length) return NextResponse.json({ error: "Keine gültigen Felder" }, { status: 400 });
 
+  let groupSync: unknown = undefined;
+
   try {
     const updated = await prisma.basePerson.update({ where: { id }, data: updateData });
-    return NextResponse.json({ data: updated });
+
+    // Gruppenwechsel prüfen und Keycloak synchronisieren
+    let groupSyncDebug: any = undefined;
+    if (Object.prototype.hasOwnProperty.call(updateData, "gruppe")) {
+      const newGroup = updateData.gruppe as string | undefined; // kann undefined sein wenn leer
+      const oldGroup = previous.gruppe;
+      if (newGroup && newGroup !== oldGroup) {
+        // Beide Gruppen-Records laden um an beschreibung (Keycloak Group ID) zu kommen
+        const gruppen = await prisma.baseGruppe.findMany({
+          where: { bezeichnung: { in: [oldGroup, newGroup] } },
+          select: { bezeichnung: true, beschreibung: true },
+        });
+        const map = new Map(gruppen.map(g => [g.bezeichnung, g.beschreibung]));
+        const oldKc = map.get(oldGroup) || null;
+        const newKc = map.get(newGroup) || null;
+        if (process.env.KEYCLOAK_GROUP_SYNC_DEBUG === "1") {
+          groupSyncDebug = { oldGroup, newGroup, oldKc, newKc };
+          // eslint-disable-next-line no-console
+          console.log("[kc-group-sync] Wechsel", groupSyncDebug);
+        }
+        try {
+          groupSync = await syncUserGroupChange({
+            keycloakUserId: updated.keycloak_id,
+            oldGroupKcId: oldKc,
+            newGroupKcId: newKc,
+          });
+        } catch (e) {
+          groupSync = { error: "Keycloak Sync Fehler", detail: e instanceof Error ? e.message : String(e) };
+        }
+      } else if (process.env.KEYCLOAK_GROUP_SYNC_DEBUG === "1") {
+        groupSyncDebug = { skipped: true, reason: newGroup === oldGroup ? "unchanged" : "empty newGroup", oldGroup, newGroup };
+      }
+    }
+
+    return NextResponse.json({ data: updated, groupSync, groupSyncDebug });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("Record to update not found")) return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
