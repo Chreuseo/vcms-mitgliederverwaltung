@@ -33,6 +33,8 @@ export default function MitgliederlistePage() {
   const [filterHvm, setFilterHvm] = useState<'all'|'yes'|'no'>('all');
   const [showColumnsBox, setShowColumnsBox] = useState(false);
   const [showFilterBox, setShowFilterBox] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   const queryFields = useMemo(() => {
     const f = ["id", ...selected];
@@ -79,6 +81,18 @@ export default function MitgliederlistePage() {
 
   const resetFilters = () => {
     setFilterGroups([]); setFilterStatus([]); setFilterHvm('all');
+  };
+
+  const runSync = async () => {
+    setSyncing(true); setSyncMsg(null);
+    try {
+      const res = await fetch('/api/mitglieder/sync-emails', { method: 'POST' });
+      const json = await res.json().catch(()=>({ error: 'Unbekannte Antwort'}));
+      if (!res.ok) { setSyncMsg(json.error || res.statusText); return; }
+      setSyncMsg(`Aktualisiert: ${json.updated} / ${json.attempted}`);
+      await load();
+    } catch (e) { setSyncMsg(e instanceof Error ? e.message : String(e)); }
+    finally { setSyncing(false); }
   };
 
   return (
@@ -163,8 +177,11 @@ export default function MitgliederlistePage() {
 
       <div className="flex items-center gap-4 text-sm">
         <button onClick={load} disabled={loading} className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50">Neu laden</button>
+        <Link href="/mitgliederliste/neu" className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10">Neuer Eintrag</Link>
+        <button onClick={runSync} disabled={syncing} className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50">{syncing? 'Sync…':'Sync Mails from Keycloak'}</button>
         {loading && <span>Lädt…</span>}
         {error && <span className="text-red-600">{error}</span>}
+        {syncMsg && <span className="text-foreground/60">{syncMsg}</span>}
         <span className="ml-auto text-foreground/60">{data.length} Einträge</span>
       </div>
 

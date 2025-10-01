@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ALL_FIELDS, DEFAULT_LIST_FIELDS } from "@/lib/mitglieder/constants";
 import type { Field } from "@/lib/mitglieder/constants";
 import { authorizeMitglieder } from "@/lib/mitglieder/auth";
-
-const ROLE = process.env.MITGLIEDER_VERWALTUNG_ROLE || "";
+import { createUser, deleteUser } from "@/lib/keycloak/users";
 
 // Stelle sicher, dass "vorname" immer in der Abfrage enthalten ist
 function parseFieldsParam(param: string | null): Field[] {
@@ -62,4 +61,42 @@ export async function GET(req: NextRequest) {
   } catch (e: unknown) {
     return NextResponse.json({ error: "DB Fehler", detail: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await authorize(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
+  let raw: unknown;
+  try { raw = await req.json(); } catch { return NextResponse.json({ error: "Ungültiges JSON" }, { status: 400 }); }
+  if (typeof raw !== "object" || raw == null) return NextResponse.json({ error: "Body muss Objekt sein" }, { status: 400 });
+  const body = raw as Record<string, unknown>;
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  if (!email) return NextResponse.json({ error: "Email erforderlich" }, { status: 400 });
+
+  // Optionale Felder
+  const vorname = typeof body.vorname === "string" ? body.vorname.trim() || null : null;
+  const name = typeof body.name === "string" ? body.name.trim() || null : null;
+  const gruppeRaw = typeof body.gruppe === "string" ? body.gruppe.trim() : "";
+  const gruppe = gruppeRaw ? gruppeRaw.slice(0,1) : undefined; // default handled by schema
+  const status = typeof body.status === "string" ? body.status.trim() || null : null;
+  const hausvereinsmitglied = typeof body.hausvereinsmitglied === "boolean" ? body.hausvereinsmitglied : undefined;
+
+  // Erstelle zuerst Keycloak User
+  const kc = await createUser({ email, firstName: vorname || undefined, lastName: name || undefined });
+  if (kc.error || !kc.id) {
+    return NextResponse.json({ error: "Keycloak User Erstellung fehlgeschlagen", detail: kc.error }, { status: 502 });
+  }
+  let created: unknown;
+  try {
+    created = await prisma.basePerson.create({ data: { email, vorname, name, gruppe, status, hausvereinsmitglied, keycloak_id: kc.id } });
+  } catch (e: unknown) {
+    // Rollback Keycloak User falls DB Fehler
+    await deleteUser(kc.id);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Unique constraint failed") || msg.includes("unique")) {
+      return NextResponse.json({ error: "Email bereits vorhanden" }, { status: 409 });
+    }
+    return NextResponse.json({ error: "DB Fehler", detail: msg }, { status: 500 });
+  }
+  return NextResponse.json({ data: created, keycloak: { id: kc.id, created: kc.created } }, { status: 201 });
 }
