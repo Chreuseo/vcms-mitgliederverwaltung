@@ -47,7 +47,14 @@ export default function MitgliedEditPage() {
 
   const onChange = (field: string, value: unknown) => {
     setDirty(prev => ({ ...prev, [field]: value }));
-    setPerson(p => p ? { ...p, [field]: value } : p);
+    setPerson(p => {
+      if (!p) return p;
+      const updatedPerson = { ...p, [field]: value };
+      if (field === "hausvereinsmitglied" && value === null) {
+        updatedPerson[field] = false;
+      }
+      return updatedPerson;
+    });
   };
 
   const save = async () => {

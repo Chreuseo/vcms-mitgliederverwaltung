@@ -33,7 +33,13 @@ export default function NeuesMitgliedPage() {
   useEffect(() => { loadMeta(); }, [loadMeta]);
 
   const onChange = (field: string, value: unknown) => {
-    setPerson(p => ({ ...p, [field]: value }));
+    setPerson(p => {
+      const updatedPerson = { ...p, [field]: value };
+      if (field === "hausvereinsmitglied" && value === null) {
+        updatedPerson[field] = false;
+      }
+      return updatedPerson;
+    });
   };
 
   const submit = useCallback(async () => {
