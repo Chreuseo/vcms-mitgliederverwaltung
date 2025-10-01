@@ -53,8 +53,8 @@ export default function MitgliederlistePage() {
   const [filterGroups, setFilterGroups] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
   const [filterHvm, setFilterHvm] = useState<'all'|'yes'|'no'>('all');
-  const [showColumnsBox, setShowColumnsBox] = useState(true);
-  const [showFilterBox, setShowFilterBox] = useState(true);
+  const [showColumnsBox, setShowColumnsBox] = useState(false);
+  const [showFilterBox, setShowFilterBox] = useState(false);
 
   const queryFields = useMemo(() => {
     const f = ["id", ...selected];
