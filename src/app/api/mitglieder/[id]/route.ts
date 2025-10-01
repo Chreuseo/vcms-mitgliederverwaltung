@@ -12,8 +12,6 @@ const EDITABLE_FIELDS = [
   "anrede","titel","rang","vorname","praefix","name","suffix","geburtsname","zusatz1","strasse1","ort1","plz1","land1","telefon1","datum_adresse1_stand","zusatz2","strasse2","ort2","plz2","land2","telefon2","datum_adresse2_stand","region1","region2","mobiltelefon","email","skype","webseite","datum_geburtstag","beruf","heirat_partner","heirat_datum","tod_datum","tod_ort","gruppe","datum_gruppe_stand","status","semester_reception","semester_promotion","semester_philistrierung","semester_aufnahme","semester_fusion","austritt_datum","spitzname","anschreiben_zusenden","spendenquittung_zusenden","vita","bemerkung","password_hash","validationkey","keycloak_id","hausvereinsmitglied"
 ] as const;
 
-type EditableField = typeof EDITABLE_FIELDS[number];
-
 async function authorize(req: NextRequest) {
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
   const token = await getToken({ req, secret }) as ExtendedJWT | null;
@@ -67,7 +65,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   }
 
   const incoming = raw as Record<string, unknown>;
-  const updateData: Prisma.BasePersonUpdateInput = {};
+  const updateData: Record<string, unknown> = {};
 
   const DATE_FIELDS = new Set([
     "datum_adresse1_stand","datum_adresse2_stand","datum_geburtstag","heirat_datum","tod_datum","datum_gruppe_stand","austritt_datum"
@@ -86,39 +84,39 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (DATE_FIELDS.has(key)) {
       if (typeof value === "string" && value) {
         const d = new Date(value);
-        if (!isNaN(d.getTime())) (updateData as any)[key] = d; else (updateData as any)[key] = null;
+        if (!isNaN(d.getTime())) updateData[key] = d; else updateData[key] = null;
       } else if (value instanceof Date) {
-        (updateData as any)[key] = value;
+        updateData[key] = value;
       } else if (value == null || value === "") {
-        (updateData as any)[key] = null;
+        updateData[key] = null;
       }
       continue;
     }
 
     if (BOOLEAN_FIELDS.has(key)) {
-      if (typeof value === "boolean") (updateData as any)[key] = value;
-      else if (typeof value === "string") (updateData as any)[key] = value === "true";
+      if (typeof value === "boolean") updateData[key] = value;
+      else if (typeof value === "string") updateData[key] = value === "true";
       continue;
     }
 
     if (INT_FIELDS.has(key)) {
-      if (value == null || value === "") { (updateData as any)[key] = null; }
+      if (value == null || value === "") { updateData[key] = null; }
       else {
         const n = typeof value === "number" ? value : parseInt(String(value),10);
-        (updateData as any)[key] = Number.isNaN(n) ? null : n;
+        updateData[key] = Number.isNaN(n) ? null : n;
       }
       continue;
     }
 
     switch (key) {
       case "gruppe":
-        if (value == null || value === "") (updateData as any).gruppe = undefined; else (updateData as any).gruppe = String(value).slice(0,1);
+        if (value == null || value === "") updateData.gruppe = undefined; else updateData.gruppe = String(value).slice(0,1);
         break;
       case "status":
-        (updateData as any).status = value == null || value === "" ? null : String(value);
+        updateData.status = value == null || value === "" ? null : String(value);
         break;
       default:
-        (updateData as any)[key] = value == null || value === "" ? null : String(value);
+        updateData[key] = value == null || value === "" ? null : String(value);
     }
   }
 
