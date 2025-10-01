@@ -9,7 +9,7 @@ const ALL_FIELDS = [
 
 type Field = typeof ALL_FIELDS[number];
 
-const DEFAULT_FIELDS: Field[] = [...ALL_FIELDS];
+const DEFAULT_FIELDS: Field[] = ["name","strasse1","plz1","ort1","email"];
 
 interface PersonRow {
   id: number;
@@ -20,7 +20,11 @@ interface PersonRow {
 interface ApiResponse {
   error?: string;
   data?: PersonRow[];
+  statusOptions?: MetaOption[];
+  groupOptions?: MetaOption[];
 }
+
+interface MetaOption { bezeichnung: string; beschreibung: string | null }
 
 const DATE_FIELDS = new Set([
   "datum_adresse1_stand","datum_adresse2_stand","datum_geburtstag","heirat_datum","tod_datum","datum_gruppe_stand","austritt_datum"
@@ -44,29 +48,46 @@ export default function MitgliederlistePage() {
   const [data, setData] = useState<PersonRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusOptions, setStatusOptions] = useState<MetaOption[]>([]);
+  const [groupOptions, setGroupOptions] = useState<MetaOption[]>([]);
+  const [filterGroups, setFilterGroups] = useState<string[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const [filterHvm, setFilterHvm] = useState<'all'|'yes'|'no'>('all');
+  const [showColumnsBox, setShowColumnsBox] = useState(true);
+  const [showFilterBox, setShowFilterBox] = useState(true);
 
   const queryFields = useMemo(() => {
-    // id wird von API implizit ergänz; wir schicken aber sicherheitshalber
     const f = ["id", ...selected];
     return Array.from(new Set(f)).join(",");
   }, [selected]);
 
+  const queryFilter = useMemo(() => {
+    const params: string[] = [];
+    if (filterGroups.length) params.push(`gruppe=${encodeURIComponent(filterGroups.join(','))}`);
+    if (filterStatus.length) params.push(`status=${encodeURIComponent(filterStatus.join(','))}`);
+    if (filterHvm !== 'all') params.push(`hvm=${filterHvm}`);
+    return params.join('&');
+  }, [filterGroups, filterStatus, filterHvm]);
+
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const res = await fetch(`/api/mitglieder?fields=${encodeURIComponent(queryFields)}`, { cache: "no-store" });
+      const url = `/api/mitglieder?meta=1&fields=${encodeURIComponent(queryFields)}${queryFilter ? `&${queryFilter}` : ''}`;
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) {
         const j: ApiResponse = await res.json().catch(() => ({}));
         throw new Error(j.error || res.statusText);
       }
       const json: ApiResponse = await res.json();
       setData(json.data || []);
+      if (json.statusOptions) setStatusOptions(json.statusOptions);
+      if (json.groupOptions) setGroupOptions(json.groupOptions);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [queryFields]);
+  }, [queryFields, queryFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -74,20 +95,92 @@ export default function MitgliederlistePage() {
     setSelected(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
   };
 
+  const toggleArrayValue = (value: string, listSetter: React.Dispatch<React.SetStateAction<string[]>>) => {
+    listSetter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
+  };
+
+  const resetFilters = () => {
+    setFilterGroups([]); setFilterStatus([]); setFilterHvm('all');
+  };
+
   return (
     <section className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Mitgliederliste</h1>
-        <p className="text-sm text-foreground/70 mt-1">Spalten auswählen und Mitglieder bearbeiten.</p>
+        <p className="text-sm text-foreground/70 mt-1">Spalten & Filter anpassen.</p>
       </div>
 
-      <fieldset className="border rounded-md p-3 flex flex-wrap gap-4">
-        {ALL_FIELDS.map(f => (
-          <label key={f} className="flex items-center gap-1 text-sm">
-            <input type="checkbox" checked={selected.includes(f)} onChange={()=>toggle(f)} className="accent-blue-600" /> {LABELS[f] || f}
-          </label>
-        ))}
-      </fieldset>
+      <div className="space-y-3">
+        <div className="border rounded-md">
+          <button type="button" onClick={() => setShowColumnsBox(s => !s)} className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium">
+            <span>Spaltenauswahl</span>
+            <span>{showColumnsBox ? '−' : '+'}</span>
+          </button>
+          {showColumnsBox && (
+            <fieldset className="p-3 flex flex-wrap gap-4 text-sm max-h-72 overflow-auto">
+              {ALL_FIELDS.map(f => (
+                <label key={f} className="flex items-center gap-1">
+                  <input type="checkbox" checked={selected.includes(f)} onChange={()=>toggle(f)} className="accent-blue-600" /> {(LABELS[f] || f.replace(/_/g,' '))}
+                </label>
+              ))}
+            </fieldset>
+          )}
+        </div>
+
+        <div className="border rounded-md">
+          <button type="button" onClick={() => setShowFilterBox(s => !s)} className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium">
+            <span>Filter (Gruppe / Status / Hausvereinsmitglied)</span>
+            <span>{showFilterBox ? '−' : '+'}</span>
+          </button>
+          {showFilterBox && (
+            <div className="p-3 space-y-4 text-sm">
+              <div>
+                <div className="font-semibold mb-1">Gruppe</div>
+                <div className="flex flex-wrap gap-3">
+                  {groupOptions.map(g => {
+                    const val = g.bezeichnung;
+                    return (
+                      <label key={val} className="flex items-center gap-1">
+                        <input type="checkbox" className="accent-blue-600" checked={filterGroups.includes(val)} onChange={()=>toggleArrayValue(val,setFilterGroups)} />
+                        <span>{g.beschreibung || val}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div className="font-semibold mb-1">Status</div>
+                <div className="flex flex-wrap gap-3 max-h-40 overflow-auto pr-2">
+                  {statusOptions.map(s => {
+                    const val = s.bezeichnung;
+                    return (
+                      <label key={val} className="flex items-center gap-1">
+                        <input type="checkbox" className="accent-blue-600" checked={filterStatus.includes(val)} onChange={()=>toggleArrayValue(val,setFilterStatus)} />
+                        <span>{val}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div className="font-semibold mb-1">Hausvereinsmitglied</div>
+                <div className="flex gap-4">
+                  {(['all','yes','no'] as const).map(v => (
+                    <label key={v} className="flex items-center gap-1">
+                      <input type="radio" name="hvm" value={v} checked={filterHvm===v} onChange={()=>setFilterHvm(v)} className="accent-blue-600" />
+                      <span>{v==='all'?'Alle': v==='yes'?'Ja':'Nein'}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={resetFilters} type="button" className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10">Zurücksetzen</button>
+                <button onClick={load} disabled={loading} type="button" className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50">Anwenden</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="flex items-center gap-4 text-sm">
         <button onClick={load} disabled={loading} className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50">Neu laden</button>
@@ -109,7 +202,6 @@ export default function MitgliederlistePage() {
             {data.map(row => (
               <tr key={row.id} className="odd:bg-black/5 dark:odd:bg-white/5">
                 {selected.map(f => {
-                  // Passe die Tabellendarstellung an, um Vorname und Name zusammen zu rendern
                   if (f === "name") {
                     const display = `${row.vorname || ""} ${row.name || ""}`.trim() || `#${row.id}`;
                     return (

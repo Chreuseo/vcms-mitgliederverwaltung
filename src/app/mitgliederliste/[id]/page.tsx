@@ -46,6 +46,8 @@ export default function MitgliedEditPage() {
   const [dirty, setDirty] = useState<Record<string, unknown>>({});
   const [statusOptions, setStatusOptions] = useState<LoadResult["statusOptions"]>([]);
   const [groupOptions, setGroupOptions] = useState<LoadResult["groupOptions"]>([]);
+  const [showFilterBox, setShowFilterBox] = useState(true);
+  const [showFieldsBox, setShowFieldsBox] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -99,17 +101,19 @@ export default function MitgliedEditPage() {
         <Link href="/mitgliederliste" className="ml-auto text-blue-600 hover:underline text-sm">Zurück zur Liste</Link>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {editable.map(f => {
-          const val = person[f];
-          if (f === "gruppe") {
-            const current = String(val ?? "");
-            return (
-              <label key={f} className="flex flex-col text-sm gap-1">
+      <div className="space-y-4">
+        <div className="border rounded-md">
+          <button type="button" onClick={()=>setShowFilterBox(s=>!s)} className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium">
+            <span>Filter (Gruppe / Status / Hausvereinsmitglied)</span>
+            <span>{showFilterBox ? '−' : '+'}</span>
+          </button>
+          {showFilterBox && (
+            <div className="p-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+              <label className="flex flex-col gap-1">
                 <span className="font-medium">Gruppe</span>
                 <select
-                  value={current}
-                  onChange={e => onChange(f, e.target.value)}
+                  value={String(person.gruppe ?? '')}
+                  onChange={e=>onChange('gruppe', e.target.value)}
                   className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
                 >
                   <option value="" />
@@ -118,16 +122,11 @@ export default function MitgliedEditPage() {
                   ))}
                 </select>
               </label>
-            );
-          }
-          if (f === "status") {
-            const current = String(val ?? "");
-            return (
-              <label key={f} className="flex flex-col text-sm gap-1">
+              <label className="flex flex-col gap-1">
                 <span className="font-medium">Status</span>
                 <select
-                  value={current}
-                  onChange={e => onChange(f, e.target.value)}
+                  value={String(person.status ?? '')}
+                  onChange={e=>onChange('status', e.target.value)}
                   className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
                 >
                   <option value="" />
@@ -136,48 +135,66 @@ export default function MitgliedEditPage() {
                   ))}
                 </select>
               </label>
-            );
-          }
-          if (BOOLEAN_FIELDS.has(f)) {
-            const checked = Boolean(val);
-            return (
-              <label key={f} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={e => onChange(f, e.target.checked)}
-                  className="accent-blue-600"
-                />
-                <span className="font-medium capitalize">{f.replace(/_/g, " ")}</span>
+              <label className="flex items-center gap-2 mt-6">
+                <input type="checkbox" className="accent-blue-600" checked={Boolean(person.hausvereinsmitglied)} onChange={e=>onChange('hausvereinsmitglied', e.target.checked)} />
+                <span className="font-medium">Hausvereinsmitglied</span>
               </label>
-            );
-          }
-          const isDate = DATE_FIELDS.has(f);
-          if (f === "vita") {
-            return (
-              <label key={f} className="flex flex-col text-sm gap-1 sm:col-span-2 lg:col-span-3">
-                <span className="font-medium capitalize">Vita</span>
-                <textarea
-                  value={String(val ?? "")}
-                  onChange={e => onChange(f, e.target.value)}
-                  rows={5}
-                  className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent resize-vertical"
-                />
-              </label>
-            );
-          }
-          return (
-            <label key={f} className="flex flex-col text-sm gap-1">
-              <span className="font-medium capitalize">{f.replace(/_/g, " ")}</span>
-              <input
-                type={isDate ? "date" : "text"}
-                value={isDate ? formatDateInput(val) : String(val ?? "")}
-                onChange={e => onChange(f, isDate ? e.target.value : e.target.value)}
-                className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
-              />
-            </label>
-          );
-        })}
+            </div>
+          )}
+        </div>
+
+        <div className="border rounded-md">
+          <button type="button" onClick={()=>setShowFieldsBox(s=>!s)} className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium">
+            <span>Felder</span>
+            <span>{showFieldsBox ? '−' : '+'}</span>
+          </button>
+          {showFieldsBox && (
+            <div className="grid gap-4 p-3 sm:grid-cols-2 lg:grid-cols-3">
+              {editable.filter(f => !['gruppe','status','hausvereinsmitglied'].includes(f)).map(f => {
+                const val = person[f];
+                if (BOOLEAN_FIELDS.has(f)) {
+                  const checked = Boolean(val);
+                  return (
+                    <label key={f} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => onChange(f, e.target.checked)}
+                        className="accent-blue-600"
+                      />
+                      <span className="font-medium capitalize">{f.replace(/_/g, " ")}</span>
+                    </label>
+                  );
+                }
+                const isDate = DATE_FIELDS.has(f);
+                if (f === "vita") {
+                  return (
+                    <label key={f} className="flex flex-col text-sm gap-1 sm:col-span-2 lg:col-span-3">
+                      <span className="font-medium capitalize">Vita</span>
+                      <textarea
+                        value={String(val ?? "")}
+                        onChange={e => onChange(f, e.target.value)}
+                        rows={5}
+                        className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent resize-vertical"
+                      />
+                    </label>
+                  );
+                }
+                return (
+                  <label key={f} className="flex flex-col text-sm gap-1">
+                    <span className="font-medium capitalize">{f.replace(/_/g, " ")}</span>
+                    <input
+                      type={isDate ? "date" : "text"}
+                      value={isDate ? formatDateInput(val) : String(val ?? "")}
+                      onChange={e => onChange(f, isDate ? e.target.value : e.target.value)}
+                      className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4 flex-wrap">
