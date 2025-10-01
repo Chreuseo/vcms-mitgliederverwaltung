@@ -10,7 +10,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -68,7 +68,7 @@ model BasePerson {
   password_hash            String?   @db.VarChar(255)
   validationkey            String?   @db.VarChar(255)
   keycloak_id              String?   @unique @db.VarChar(190)
-  hausvereinsmitglied      Boolean?  @db.Boolean
+  hausvereinsmitglied      Boolean?
 
   @@map("base_person")
 }
