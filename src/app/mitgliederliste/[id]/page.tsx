@@ -22,7 +22,7 @@ const DATE_FIELDS = new Set([
 const BOOLEAN_FIELDS = new Set([
   "anschreiben_zusenden","spendenquittung_zusenden","hausvereinsmitglied"
 ]);
-const DEFAULT_EDIT_FIELDS: string[] = ["vorname", "name", "email", "strasse1", "plz1", "ort1", "telefon1", "mobiltelefon", "datum_geburtstag", "gruppe", "status", "hausvereinsmitglied"];
+const DEFAULT_EDIT_FIELDS: string[] = ["vorname", "name", "email", "strasse1", "plz1", "ort1", "telefon1", "mobiltelefon", "datum_geburtstag", "gruppe", "status", "hausvereinsmitglied", "semester_reception", "semester_promotion", "semester_philistrierung", "semester_aufnahme"];
 
 function formatDateInput(value: unknown): string {
   if (!value) return "";
@@ -212,6 +212,53 @@ export default function MitgliedEditPage() {
                         rows={5}
                         className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent resize-vertical"
                       />
+                    </label>
+                  );
+                }
+                if (["semester_reception", "semester_promotion", "semester_philistrierung", "semester_aufnahme"].includes(f)) {
+                  const semesterValue = String(val ?? "");
+                  const match = semesterValue.match(/^(WS|SS)(\d{4})(\d{4})?$/);
+                  const semester = match ? match[1] : "";
+                  const year = match ? match[2] : "";
+                  const nextYear = match && match[3] ? match[3] : "";
+
+                  return (
+                    <label key={f} className="flex flex-col text-sm gap-1">
+                      <span className="font-medium capitalize">{f.replace(/_/g, " ")}</span>
+                      <div className="flex gap-2 items-center">
+                        <select
+                          value={semester}
+                          onChange={e => {
+                            const newSemester = e.target.value;
+                            const newValue = newSemester === "WS" && year
+                              ? `${newSemester}${year}${Number(year) + 1}`
+                              : newSemester === "SS" && year
+                              ? `${newSemester}${year}`
+                              : "";
+                            onChange(f, newValue);
+                          }}
+                          className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent"
+                        >
+                          <option value="">-</option>
+                          <option value="WS">WS</option>
+                          <option value="SS">SS</option>
+                        </select>
+                        <input
+                          type="number"
+                          value={year}
+                          onChange={e => {
+                            const newYear = e.target.value;
+                            const newValue = semester === "WS" && newYear
+                              ? `${semester}${newYear}${Number(newYear) + 1}`
+                              : semester === "SS" && newYear
+                              ? `${semester}${newYear}`
+                              : "";
+                            onChange(f, newValue);
+                          }}
+                          placeholder="Jahr"
+                          className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-transparent w-20"
+                        />
+                      </div>
                     </label>
                   );
                 }
