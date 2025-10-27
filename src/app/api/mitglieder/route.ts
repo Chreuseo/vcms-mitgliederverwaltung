@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ALL_FIELDS, DEFAULT_LIST_FIELDS } from "@/lib/mitglieder/constants";
+import { ALL_FIELDS, DEFAULT_LIST_FIELDS, EDITABLE_FIELDS, DATE_FIELDS, BOOLEAN_FIELDS, INT_FIELDS } from "@/lib/mitglieder/constants";
 import type { Field } from "@/lib/mitglieder/constants";
 import { authorizeMitglieder } from "@/lib/mitglieder/auth";
 import { createUser, deleteUser } from "@/lib/keycloak/users";
@@ -70,30 +70,78 @@ export async function POST(req: NextRequest) {
   try { raw = await req.json(); } catch { return NextResponse.json({ error: "Ungültiges JSON" }, { status: 400 }); }
   if (typeof raw !== "object" || raw == null) return NextResponse.json({ error: "Body muss Objekt sein" }, { status: 400 });
   const body = raw as Record<string, unknown>;
+
+  // Pflichtfeld Email
   const email = typeof body.email === "string" ? body.email.trim() : "";
   if (!email) return NextResponse.json({ error: "Email erforderlich" }, { status: 400 });
 
-  // Optionale Felder
-  const vorname = typeof body.vorname === "string" ? body.vorname.trim() || null : null;
-  const name = typeof body.name === "string" ? body.name.trim() || null : null;
-  const gruppeRaw = typeof body.gruppe === "string" ? body.gruppe.trim() : "";
-  const gruppe = gruppeRaw ? gruppeRaw.slice(0,1) : undefined; // default handled by schema
-  const status = typeof body.status === "string" ? body.status.trim() || null : null;
-  const hausvereinsmitglied = typeof body.hausvereinsmitglied === "boolean" ? body.hausvereinsmitglied : undefined;
-
-  // Erstelle zuerst Keycloak User
-  const kc = await createUser({ email, firstName: vorname || undefined, lastName: name || undefined });
+  // Keycloak zuerst anlegen (nur minimale Daten nötig)
+  const vornameDraft = typeof body.vorname === "string" ? body.vorname.trim() || undefined : undefined;
+  const nameDraft = typeof body.name === "string" ? body.name.trim() || undefined : undefined;
+  const kc = await createUser({ email, firstName: vornameDraft, lastName: nameDraft });
   if (kc.error || !kc.id) {
     return NextResponse.json({ error: "Keycloak User Erstellung fehlgeschlagen", detail: kc.error }, { status: 502 });
   }
+
+  // Datenobjekt aufbauen – analog zur PATCH Logik, aber für Create
+  const data: Record<string, unknown> = { email, keycloak_id: kc.id };
+
+  for (const key of EDITABLE_FIELDS) {
+    if (key === "id" || key === "leibmitglied" || key === "email" || key === "keycloak_id") continue; // ausgeschlossen / separat
+    if (!Object.prototype.hasOwnProperty.call(body, key)) {
+      if (key === "hausvereinsmitglied") data.hausvereinsmitglied = false; // Default false statt null
+      continue; // Feld wurde nicht geschickt
+    }
+    const value = (body as Record<string, unknown>)[key];
+
+    if (DATE_FIELDS.has(key)) {
+      if (typeof value === "string" && value) {
+        const d = new Date(value);
+        data[key] = isNaN(d.getTime()) ? null : d;
+      } else if (value instanceof Date) {
+        data[key] = value;
+      } else if (value == null || value === "") {
+        data[key] = null;
+      }
+      continue;
+    }
+
+    if (BOOLEAN_FIELDS.has(key)) {
+      if (typeof value === "boolean") data[key] = value; else if (typeof value === "string") data[key] = value === "true"; else data[key] = false; // Default false
+      continue;
+    }
+
+    if (INT_FIELDS.has(key)) {
+      if (value == null || value === "") data[key] = null; else {
+        const n = typeof value === "number" ? value : parseInt(String(value), 10);
+        data[key] = Number.isNaN(n) ? null : n;
+      }
+      continue;
+    }
+
+    switch (key) {
+      case "gruppe":
+        data.gruppe = value == null || value === "" ? undefined : String(value).slice(0,1);
+        break;
+      case "status":
+        data.status = value == null || value === "" ? null : String(value);
+        break;
+      default:
+        data[key] = value == null || value === "" ? null : String(value);
+    }
+  }
+
+  // Sicherheit: falls hausvereinsmitglied immer noch undefined -> false
+  if (typeof data.hausvereinsmitglied === "undefined") data.hausvereinsmitglied = false;
+
   let created: unknown;
   try {
-    created = await prisma.basePerson.create({ data: { email, vorname, name, gruppe, status, hausvereinsmitglied, keycloak_id: kc.id } });
+    created = await prisma.basePerson.create({ data });
   } catch (e: unknown) {
     // Rollback Keycloak User falls DB Fehler
     await deleteUser(kc.id);
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("Unique constraint failed") || msg.includes("unique")) {
+    if (msg.includes("Unique constraint failed") || msg.toLowerCase().includes("unique")) {
       return NextResponse.json({ error: "Email bereits vorhanden" }, { status: 409 });
     }
     return NextResponse.json({ error: "DB Fehler", detail: msg }, { status: 500 });

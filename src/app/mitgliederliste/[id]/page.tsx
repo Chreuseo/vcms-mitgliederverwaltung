@@ -10,6 +10,7 @@ interface Person {
   vorname?: string;
   name?: string;
   email?: string;
+  hausvereinsmitglied?: boolean;
   [key: string]: unknown; // Erlaubt zusätzliche Felder mit unbekannten Typen
 }
 interface LoadResult { data?: Person; editable?: string[]; statusOptions?: { bezeichnung: string; beschreibung: string | null }[]; groupOptions?: { bezeichnung: string; beschreibung: string | null }[]; error?: string; }
@@ -35,7 +36,13 @@ export default function MitgliedEditPage() {
       const res = await fetch(`/api/mitglieder/${id}`, { cache: "no-store" });
       const json: LoadResult = await res.json().catch(()=>({ error: "Unbekannte Antwort" }));
       if (!res.ok) { setError(json.error || res.statusText); return; }
-      setPerson(json.data || null);
+      const p = json.data as Person | null;
+      // hausvereinsmitglied null -> false normalisieren und direkt als Änderung vormerken, damit PATCH ausgeführt wird
+      if (p && p.hausvereinsmitglied == null) {
+        p.hausvereinsmitglied = false;
+        setDirty(d => ({ ...d, hausvereinsmitglied: false }));
+      }
+      setPerson(p);
       setEditable((json.editable || []).filter(f => f !== "leibmitglied"));
       setStatusOptions(json.statusOptions || []);
       setGroupOptions(json.groupOptions || []);
