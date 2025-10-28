@@ -56,6 +56,13 @@ export default function ExportPage() {
   // Benutzerdefinierte Felder
   const [customFields, setCustomFields] = useState<string[]>([...DEFAULT_LIST_FIELDS]);
 
+  // Technische Details (CSV)
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [includeId, setIncludeId] = useState(false); // Standard: nein
+  const [delimiter, setDelimiter] = useState(";"); // Standard: Semikolon
+  const [quote, setQuote] = useState('"'); // Standard: Anführungszeichen
+  const [markLinebreaks, setMarkLinebreaks] = useState(false); // Standard: aus
+
   const loadMeta = useCallback(async () => {
     setMetaLoading(true);
     setMetaError(null);
@@ -100,17 +107,28 @@ export default function ExportPage() {
 
   // Download-Handler
   const downloadCsv = useCallback(async (params: { fields?: string[]; preset?: string; filename?: string }) => {
-    const fields = params.fields?.length ? params.fields : undefined;
+    // Felder vorbereiten – ID je nach Einstellung ein-/ausschließen
+    let effFields = params.fields?.length ? [...params.fields] : undefined;
+    if (effFields) {
+      if (includeId && !effFields.includes("id")) effFields.unshift("id");
+      if (!includeId) effFields = effFields.filter(f => f !== "id");
+    }
+
+    // CSV-Optionen
+    const delimParam = delimiter === "\t" ? "tab" : delimiter; // Tab speziell kodieren
     const qs = buildQuery({
-      fields: fields?.join(","),
+      fields: effFields?.join(","),
       preset: params.preset,
       gruppe: gruppeParam,
       status: statusParam,
       hvm: hvmParam,
       filename: params.filename,
+      includeId: includeId ? "1" : "0",
+      delim: delimParam,
+      quote: quote || undefined,
+      lbmark: markLinebreaks ? "1" : undefined,
     });
     const url = "/api/mitglieder/export" + (qs ? `?${qs}` : "");
-    // Direktes Navigieren reicht; für besseren Browser-Support nutzen wir fetch+Blob
     const res = await fetch(url);
     if (!res.ok) {
       const text = await res.text().catch(() => res.statusText);
@@ -125,7 +143,7 @@ export default function ExportPage() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  }, [gruppeParam, statusParam, hvmParam]);
+  }, [gruppeParam, statusParam, hvmParam, includeId, delimiter, quote, markLinebreaks]);
 
   // UI Komponenten
   const ToggleAllButtons = (
@@ -185,6 +203,55 @@ export default function ExportPage() {
     </div>
   );
 
+  const TechnicalDetailsBox = (
+    <div className="border rounded-md overflow-hidden">
+      <button type="button" onClick={() => setDetailsOpen(o => !o)} className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium border-b border-black/10 dark:border-white/10">
+        <span>Technische Details</span>
+        <span>{detailsOpen ? "−" : "+"}</span>
+      </button>
+      {detailsOpen && (
+        <div className="p-3 space-y-4 text-sm">
+          <div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={includeId} onChange={e => setIncludeId(e.target.checked)} />
+              <span>ID mit exportieren</span>
+            </label>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <label className="block">
+              <span className="block mb-1 font-medium">Trennzeichen</span>
+              <input
+                type="text"
+                value={delimiter}
+                onChange={e => setDelimiter(e.target.value || ";")}
+                placeholder="; (Semikolon)"
+                className="w-full rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-background text-foreground"
+              />
+              <div className="text-xs text-foreground/60 mt-1">z. B. ; , \t</div>
+            </label>
+            <label className="block">
+              <span className="block mb-1 font-medium">Anführungszeichen</span>
+              <input
+                type="text"
+                value={quote}
+                onChange={e => setQuote(e.target.value || '"')}
+                placeholder={'"'}
+                className="w-full rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-background text-foreground"
+              />
+              <div className="text-xs text-foreground/60 mt-1">Zeichen zur Textbegrenzung</div>
+            </label>
+          </div>
+          <div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={markLinebreaks} onChange={e => setMarkLinebreaks(e.target.checked)} />
+              <span>Zeilenumbruchmarkierung innerhalb von Feldern (\n)</span>
+            </label>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <section className="space-y-6">
       <h1 className="text-2xl font-semibold">Export</h1>
@@ -219,6 +286,8 @@ export default function ExportPage() {
           )}
         </div>
       </div>
+
+      {TechnicalDetailsBox}
 
       <div className="grid gap-4 md:grid-cols-2">
         {Object.entries(PRESETS).map(([key, preset]) => (
