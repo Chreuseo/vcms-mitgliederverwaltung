@@ -16,6 +16,35 @@ function buildQuery(params: Record<string, string | undefined>) {
   return usp.toString();
 }
 
+function tsStamp(d = new Date()) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const y = d.getFullYear();
+  const m = pad(d.getMonth()+1);
+  const day = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  const ss = pad(d.getSeconds());
+  return `${y}${m}${day}-${hh}${mm}${ss}`;
+}
+
+function sanitizePart(s: string) {
+  return s.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9-_]/g, "");
+}
+
+function filterLabelFromMode(mode: FilterMode): string {
+  switch (mode) {
+    case "alle": return "Alle";
+    case "hvm_yes": return "Hausverein_ja";
+    case "hvm_no": return "Hausverein_nein";
+    case "bund": return "Bundesbrueder";
+    case "bund_wvwf": return "Bundesbrueder_Witwen_Vereinsfreund";
+    case "phil": return "Philister";
+    case "phil_wvwf": return "Philister_Witwen_Vereinsfreund";
+    case "custom": return "Benutzerdefiniert";
+    default: return String(mode);
+  }
+}
+
 // Status-Gruppen für Standardfilter
 const BUNDESBRUEDER = ["Fuchs", "Bursch", "Philister"] as const;
 const BUND_WITWE_VF = ["Fuchs", "Bursch", "Philister", "Witwe", "Vereinsfreund"] as const;
@@ -124,6 +153,11 @@ export default function ExportPage() {
       if (!includeId) effFields = effFields.filter(f => f !== "id");
     }
 
+    // Art des Exports bestimmen
+    const kind = params.preset ? (PRESETS[params.preset]?.label || params.preset) : "Benutzerdefiniert";
+    const filterPart = filterLabelFromMode(filterMode);
+    const nameBase = `${sanitizePart(kind)}_${sanitizePart(filterPart)}_${tsStamp()}`;
+
     // CSV-Optionen
     const delimParam = delimiter === "\t" ? "tab" : delimiter; // Tab speziell kodieren
     const qs = buildQuery({
@@ -132,7 +166,7 @@ export default function ExportPage() {
       gruppe: gruppeParam,
       status: statusParam,
       hvm: hvmParam,
-      filename: params.filename,
+      filename: nameBase,
       includeId: includeId ? "1" : "0",
       delim: delimParam,
       quote: quote || undefined,
@@ -148,12 +182,12 @@ export default function ExportPage() {
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = (params.filename || params.preset || "export") + ".csv";
+    a.download = nameBase + ".csv";
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  }, [gruppeParam, statusParam, hvmParam, includeId, delimiter, quote, markLinebreaks]);
+  }, [gruppeParam, statusParam, hvmParam, includeId, delimiter, quote, markLinebreaks, filterMode]);
 
   // UI Komponenten
   const ToggleAllButtons = (
