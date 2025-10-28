@@ -19,6 +19,8 @@ function buildQuery(params: Record<string, string | undefined>) {
 // Status-Gruppen für Standardfilter
 const BUNDESBRUEDER = ["Fuchs", "Bursch", "Philister"] as const;
 const BUND_WITWE_VF = ["Fuchs", "Bursch", "Philister", "Witwe", "Vereinsfreund"] as const;
+const PHIL = ["Philister"] as const;
+const PHIL_WITWE_VF = ["Philister", "Witwe", "Vereinsfreund"] as const;
 
 // Presets
 const PRESETS: Record<string, { label: string; fields: string[]; description?: string }> = {
@@ -38,7 +40,7 @@ const PRESETS: Record<string, { label: string; fields: string[]; description?: s
   },
 };
 
-type FilterMode = "alle" | "hvm_yes" | "hvm_no" | "bund" | "bund_wvwf" | "custom";
+type FilterMode = "alle" | "hvm_yes" | "hvm_no" | "bund" | "bund_wvwf" | "phil" | "phil_wvwf" | "custom";
 
 export default function ExportPage() {
   // Meta
@@ -48,7 +50,7 @@ export default function ExportPage() {
   const [metaError, setMetaError] = useState<string | null>(null);
 
   // Filterzustand
-  const [filterMode, setFilterMode] = useState<FilterMode>("alle");
+  const [filterMode, setFilterMode] = useState<FilterMode>("phil_wvwf");
   const [selGroups, setSelGroups] = useState<string[]>([]);
   const [selStatuses, setSelStatuses] = useState<string[]>([]);
   const [hvm, setHvm] = useState<"any" | "yes" | "no">("any");
@@ -94,6 +96,14 @@ export default function ExportPage() {
     }
     if (filterMode === "bund_wvwf") {
       const statuses = BUND_WITWE_VF as readonly string[];
+      return { gruppeParam: undefined, statusParam: statuses.join(","), hvmParam: undefined };
+    }
+    if (filterMode === "phil") {
+      const statuses = PHIL as readonly string[];
+      return { gruppeParam: undefined, statusParam: statuses.join(","), hvmParam: undefined };
+    }
+    if (filterMode === "phil_wvwf") {
+      const statuses = PHIL_WITWE_VF as readonly string[];
       return { gruppeParam: undefined, statusParam: statuses.join(","), hvmParam: undefined };
     }
     if (filterMode === "custom") {
@@ -272,6 +282,8 @@ export default function ExportPage() {
                 onChange={e => setFilterMode(e.target.value as FilterMode)}
                 className="rounded border border-black/10 dark:border-white/20 px-2 py-1 bg-background text-foreground"
               >
+                <option value="phil_wvwf">Philister + Witwen + Vereinsfreund (Standard)</option>
+                <option value="phil">Nur Philister</option>
                 <option value="alle">Alle</option>
                 <option value="hvm_yes">Nur Hausvereinsmitglieder</option>
                 <option value="hvm_no">Ohne Hausverein</option>
