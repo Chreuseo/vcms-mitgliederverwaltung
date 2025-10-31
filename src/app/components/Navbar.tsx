@@ -38,6 +38,12 @@ export default function Navbar() {
           >
             Export
           </Link>
+          <Link
+            href="/import"
+            className={`text-sm hover:underline ${isActive("/import") ? "font-semibold" : "text-foreground/80"}`}
+          >
+            Import
+          </Link>
         </div>
         <div className="flex items-center gap-4">
           <button
