@@ -36,7 +36,8 @@ function filterLabelFromMode(mode: FilterMode): string {
     case "alle": return "Alle";
     case "hvm_yes": return "Hausverein_ja";
     case "hvm_no": return "Hausverein_nein";
-    case "bund": return "Bundesbrueder";
+    case "aktiv": return "Nur_Aktive_BF";
+    case "bund": return "Bundesbrueder_FBP";
     case "bund_wvwf": return "Bundesbrueder_Witwen_Vereinsfreund";
     case "phil": return "Philister";
     case "phil_wvwf": return "Philister_Witwen_Vereinsfreund";
@@ -45,22 +46,23 @@ function filterLabelFromMode(mode: FilterMode): string {
   }
 }
 
-// Status-Gruppen für Standardfilter
-const BUNDESBRUEDER = ["Fuchs", "Bursch", "Philister"] as const;
-const BUND_WITWE_VF = ["Fuchs", "Bursch", "Philister", "Witwe", "Vereinsfreund"] as const;
-const PHIL = ["Philister"] as const;
-const PHIL_WITWE_VF = ["Philister", "Witwe", "Vereinsfreund"] as const;
+// Gruppen-Codes für vordefinierte Filter
+const GROUPS_AKTIV = ["B", "F"] as const;
+const GROUPS_BUND = ["F", "B", "P"] as const;
+const GROUPS_BUND_WVWV = ["F", "B", "P", "W", "Y"] as const;
+const GROUPS_PHIL = ["P"] as const;
+const GROUPS_PHIL_WVWV = ["P", "W", "Y"] as const;
 
 // Presets
 const PRESETS: Record<string, { label: string; fields: string[]; description?: string }> = {
   adressliste: {
     label: "Adressliste",
     description: "Name und Postadresse (mit Kontakt)",
-    fields: ["vorname","name","strasse1","plz1","ort1","land1","telefon1","mobiltelefon","email"],
+    fields: ["vorname","name","zusatz1","strasse1","plz1","ort1","land1","telefon1","mobiltelefon","email"],
   },
   geburtstage: {
     label: "Geburtstagsliste (mit Adressen)",
-    fields: ["vorname","name","datum_geburtstag","strasse1","plz1","ort1","land1","email","telefon1","mobiltelefon"],
+    fields: ["vorname","name","datum_geburtstag","zusatz1","strasse1","plz1","ort1","land1","email","telefon1","mobiltelefon"],
   },
   mailliste: {
     label: "Mailliste",
@@ -69,7 +71,7 @@ const PRESETS: Record<string, { label: string; fields: string[]; description?: s
   },
 };
 
-type FilterMode = "alle" | "hvm_yes" | "hvm_no" | "bund" | "bund_wvwf" | "phil" | "phil_wvwf" | "custom";
+type FilterMode = "alle" | "hvm_yes" | "hvm_no" | "aktiv" | "bund" | "bund_wvwf" | "phil" | "phil_wvwf" | "custom";
 
 export default function ExportPage() {
   // Meta
@@ -119,21 +121,25 @@ export default function ExportPage() {
   const { gruppeParam, statusParam, hvmParam } = useMemo(() => {
     if (filterMode === "hvm_yes") return { gruppeParam: undefined, statusParam: undefined, hvmParam: "yes" as const };
     if (filterMode === "hvm_no") return { gruppeParam: undefined, statusParam: undefined, hvmParam: "no" as const };
+    if (filterMode === "aktiv") {
+      const g = GROUPS_AKTIV.join(",");
+      return { gruppeParam: g, statusParam: undefined, hvmParam: undefined };
+    }
     if (filterMode === "bund") {
-      const statuses = BUNDESBRUEDER as readonly string[];
-      return { gruppeParam: undefined, statusParam: statuses.join(","), hvmParam: undefined };
+      const g = GROUPS_BUND.join(",");
+      return { gruppeParam: g, statusParam: undefined, hvmParam: undefined };
     }
     if (filterMode === "bund_wvwf") {
-      const statuses = BUND_WITWE_VF as readonly string[];
-      return { gruppeParam: undefined, statusParam: statuses.join(","), hvmParam: undefined };
+      const g = GROUPS_BUND_WVWV.join(",");
+      return { gruppeParam: g, statusParam: undefined, hvmParam: undefined };
     }
     if (filterMode === "phil") {
-      const statuses = PHIL as readonly string[];
-      return { gruppeParam: undefined, statusParam: statuses.join(","), hvmParam: undefined };
+      const g = GROUPS_PHIL.join(",");
+      return { gruppeParam: g, statusParam: undefined, hvmParam: undefined };
     }
     if (filterMode === "phil_wvwf") {
-      const statuses = PHIL_WITWE_VF as readonly string[];
-      return { gruppeParam: undefined, statusParam: statuses.join(","), hvmParam: undefined };
+      const g = GROUPS_PHIL_WVWV.join(",");
+      return { gruppeParam: g, statusParam: undefined, hvmParam: undefined };
     }
     if (filterMode === "custom") {
       const g = selGroups.length ? selGroups.join(",") : undefined;
@@ -318,11 +324,12 @@ export default function ExportPage() {
               >
                 <option value="phil_wvwf">Philister + Witwen + Vereinsfreund (Standard)</option>
                 <option value="phil">Nur Philister</option>
+                <option value="aktiv">Nur Aktive (B/F)</option>
+                <option value="bund">Bundesbrüder (F/B/P)</option>
+                <option value="bund_wvwf">Bundesbrüder + Witwen + Vereinsfreund (F/B/P/W/Y)</option>
                 <option value="alle">Alle</option>
                 <option value="hvm_yes">Nur Hausvereinsmitglieder</option>
                 <option value="hvm_no">Ohne Hausverein</option>
-                <option value="bund">Nur Bundesbrüder (Fuchs, Bursch, Philister)</option>
-                <option value="bund_wvwf">Bundesbrüder + Witwen + Vereinsfreund</option>
                 <option value="custom">Benutzerdefiniert…</option>
               </select>
             </label>

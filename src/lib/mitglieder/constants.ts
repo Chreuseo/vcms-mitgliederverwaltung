@@ -34,6 +34,7 @@ export const EDITABLE_FIELDS: readonly Field[] = ALL_FIELDS.filter(f => f !== "i
 export const FIELD_LABELS: Record<string,string> = {
   name: "Name (Nachname)",
   vorname: "Vorname",
+  zusatz1: "Adresszusatz",
   datum_geburtstag: "Geburtstag",
   datum_adresse1_stand: "Adr1 Stand",
   datum_adresse2_stand: "Adr2 Stand",

@@ -19,7 +19,7 @@ function parseCsvSettings(sp: URLSearchParams) {
 }
 
 function parseFieldsParam(param: string | null, preset: string | null, includeId: boolean): Field[] {
-  let fields: Field[] | null = null;
+  let fields: Field[];
   if (param) {
     const requested = param.split(",").map(p => p.trim()).filter(Boolean);
     const valid: Field[] = [];
@@ -29,8 +29,8 @@ function parseFieldsParam(param: string | null, preset: string | null, includeId
     fields = valid.length ? valid : (DEFAULT_LIST_FIELDS as Field[]);
   } else {
     const PRESETS: Record<string, Field[]> = {
-      adressliste: ["vorname","name","strasse1","plz1","ort1","land1","telefon1","mobiltelefon","email"] as Field[],
-      geburtstage: ["vorname","name","datum_geburtstag","strasse1","plz1","ort1","land1","email","telefon1","mobiltelefon"] as Field[],
+      adressliste: ["vorname","name","zusatz1","strasse1","plz1","ort1","land1","telefon1","mobiltelefon","email"] as Field[],
+      geburtstage: ["vorname","name","datum_geburtstag","zusatz1","strasse1","plz1","ort1","land1","email","telefon1","mobiltelefon"] as Field[],
       mailliste: ["vorname","name","email"] as Field[],
     };
     if (preset && PRESETS[preset]) fields = PRESETS[preset];
@@ -54,7 +54,7 @@ function toCsvCell(value: unknown, quote: string, delimiter: string, markLinebre
 
   const needsQuote = v.includes("\n") || v.includes("\r") || v.includes(delimiter) || (quote && v.includes(quote));
   if (quote && needsQuote) {
-    const escaped = v.replace(new RegExp(quote.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"), "g"), quote + quote);
+    const escaped = v.replace(new RegExp(quote.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&"), "g"), quote + quote);
     return `${quote}${escaped}${quote}`;
   }
   return v;
