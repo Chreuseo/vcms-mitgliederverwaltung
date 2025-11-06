@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ALL_FIELDS, Field, DATE_FIELDS, BOOLEAN_FIELDS, FIELD_LABELS } from "@/lib/mitglieder/constants";
 
 // Standardauswahl für UI (beibehaltener lokaler Default – unterscheidet sich von DEFAULT_LIST_FIELDS)
-const DEFAULT_FIELDS: Field[] = ["name","strasse1","plz1","ort1","email"];
+const DEFAULT_FIELDS: Field[] = ["name","strasse1","plz1","ort1","email", "datum_geburtstag"];
 
 interface PersonRow {
   id: number;
