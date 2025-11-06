@@ -21,6 +21,10 @@ interface ApiResponse {
 
 interface MetaOption { bezeichnung: string; beschreibung: string | null }
 
+// Sortiermodi
+type SortMode = 'normal' | 'date-full' | 'date-day';
+interface SortConfig { field: Field | null; direction: 'asc'|'desc'; mode: SortMode; }
+
 export default function MitgliederlistePage() {
   const [selected, setSelected] = useState<Field[]>(DEFAULT_FIELDS);
   const [data, setData] = useState<PersonRow[]>([]);
@@ -35,6 +39,8 @@ export default function MitgliederlistePage() {
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  // NEU: Sortierkonfiguration
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ field: null, direction: 'asc', mode: 'normal' });
 
   const queryFields = useMemo(() => {
     const f = ["id", ...selected];
@@ -95,12 +101,162 @@ export default function MitgliederlistePage() {
     finally { setSyncing(false); }
   };
 
+  // Hilfsfunktionen für Sortierung
+  const isSemesterField = (f: Field) => f.startsWith('semester_');
+
+  const parseDate = (val: unknown): Date | null => {
+    if (!val) return null;
+    const d = new Date(String(val));
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const dayOfYear = (d: Date) => {
+    const start = new Date(d.getFullYear(),0,0);
+    const diff = (d.getTime() - start.getTime());
+    return Math.floor(diff / 86400000); // 86400000 ms pro Tag
+  };
+
+  const parseSemesterYear = (val: unknown): number | null => {
+    if (!val) return null;
+    const m = String(val).match(/(\d{4})/);
+    if (!m) return null;
+    return parseInt(m[1],10);
+  };
+
+  const comparator = (a: PersonRow, b: PersonRow): number => {
+    const field = sortConfig.field;
+    if (!field) return 0;
+    const va = a[field];
+    const vb = b[field];
+    // Null / undefined Handling
+    const aNull = va == null || va === '';
+    const bNull = vb == null || vb === '';
+    if (aNull && bNull) return 0;
+    if (aNull) return 1; // Nulls ans Ende bei ASC (werden später mit direction multipliziert)
+    if (bNull) return -1;
+
+    // Datumsfelder
+    if (DATE_FIELDS.has(field) || field === 'datum_geburtstag') {
+      const da = parseDate(va);
+      const db = parseDate(vb);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      if (sortConfig.mode === 'date-day') {
+        const doa = dayOfYear(da);
+        const dob = dayOfYear(db);
+        return doa - dob;
+      } else { // 'date-full'
+        return da.getTime() - db.getTime();
+      }
+    }
+
+    // Semesterfelder -> Sortierung nach Jahreszahl
+    if (isSemesterField(field)) {
+      const ya = parseSemesterYear(va);
+      const yb = parseSemesterYear(vb);
+      if (ya == null && yb == null) return 0;
+      if (ya == null) return 1;
+      if (yb == null) return -1;
+      return ya - yb; // gleiche Jahre bleiben stabil
+    }
+
+    // Boolean Felder
+    if (BOOLEAN_FIELDS.has(field)) {
+      const ba = va ? 1 : 0;
+      const bb = vb ? 1 : 0;
+      return ba - bb;
+    }
+
+    // Numerische Felder
+    if (typeof va === 'number' && typeof vb === 'number') {
+      return va - vb;
+    }
+
+    // Versuche Zahl aus String
+    const numA = Number(va);
+    const numB = Number(vb);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA - numB;
+    }
+
+    // String Vergleich (case-insensitive, locale de)
+    return String(va).localeCompare(String(vb), 'de', { sensitivity: 'base' });
+  };
+
+  const sortedData = useMemo(() => {
+    if (!sortConfig.field) return data;
+    const factor = sortConfig.direction === 'asc' ? 1 : -1;
+    return [...data].sort((a,b) => comparator(a,b) * factor);
+  }, [data, sortConfig]);
+
+  // Zyklus der Sortierung beim Klick auf Header
+  const cycleSort = (field: Field) => {
+    setSortConfig(cur => {
+      // Wenn anderes Feld -> neu starten
+      if (cur.field !== field) {
+        if (DATE_FIELDS.has(field) || field === 'datum_geburtstag') {
+          return { field, direction: 'asc', mode: 'date-full' };
+        }
+        return { field, direction: 'asc', mode: 'normal' };
+      }
+      // Gleiches Feld
+      if (DATE_FIELDS.has(field) || field === 'datum_geburtstag') {
+        // Reihenfolge: date-full asc -> date-full desc -> date-day asc -> date-day desc -> unsort
+        if (cur.mode === 'date-full' && cur.direction === 'asc') return { field, direction: 'desc', mode: 'date-full' };
+        if (cur.mode === 'date-full' && cur.direction === 'desc') return { field, direction: 'asc', mode: 'date-day' };
+        if (cur.mode === 'date-day' && cur.direction === 'asc') return { field, direction: 'desc', mode: 'date-day' };
+        // zurück zu unsortiert
+        return { field: null, direction: 'asc', mode: 'normal' };
+      } else {
+        // Nicht-Datum: normal asc -> normal desc -> unsort
+        if (cur.direction === 'asc') return { field, direction: 'desc', mode: 'normal' };
+        return { field: null, direction: 'asc', mode: 'normal' };
+      }
+    });
+  };
+
+  const renderSortIndicator = (field: Field) => {
+    if (sortConfig.field !== field) return null;
+    const dirSymbol = sortConfig.direction === 'asc' ? '↑' : '↓';
+    if (DATE_FIELDS.has(field) || field === 'datum_geburtstag') {
+      if (sortConfig.mode === 'date-day') {
+        return <span className="ml-1 text-xs" title="Sortierung nach Tag im Jahr">{dirSymbol}T</span>;
+      }
+      return <span className="ml-1 text-xs" title="Sortierung nach vollständigem Datum">{dirSymbol}J</span>; // J = Jahr
+    }
+    return <span className="ml-1 text-xs" title="Sortierung">{dirSymbol}</span>;
+  };
+
+  const renderCell = (row: PersonRow, f: Field) => {
+    if (f === "name") {
+      const display = `${row.vorname || ""} ${row.name || ""}`.trim() || `#${row.id}`;
+      return (
+        <td key={f} className="px-2 py-1 whitespace-nowrap">
+          <Link href={`/mitgliederliste/${row.id}`} className="text-blue-600 hover:underline">{display}</Link>
+        </td>
+      );
+    }
+    let val = row[f];
+    if (val == null) return <td key={f} className="px-2 py-1 whitespace-nowrap"></td>;
+    if (DATE_FIELDS.has(f) && val) {
+      try { val = new Date(String(val)).toLocaleDateString("de-DE"); } catch {}
+    }
+    if (BOOLEAN_FIELDS.has(f)) {
+      val = val ? "✓" : "";
+    }
+    if (typeof val === "string" && val.length > 60) {
+      val = val.slice(0,57)+"…";
+    }
+    return <td key={f} className="px-2 py-1 whitespace-nowrap">{String(val)}</td>;
+  };
+
   return (
     <div className="bg-background text-foreground">
     <section className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Mitgliederliste</h1>
-        <p className="text-sm text-foreground/70 mt-1">Spalten & Filter anpassen.</p>
+        <p className="text-sm text-foreground/70 mt-1">Spalten & Filter anpassen. Klick auf Spaltenkopf sortiert (Datum: Jahr / Tag).</p>
       </div>
 
       <div className="space-y-3">
@@ -182,7 +338,7 @@ export default function MitgliederlistePage() {
         {loading && <span>Lädt…</span>}
         {error && <span className="text-red-600">{error}</span>}
         {syncMsg && <span className="text-foreground/60">{syncMsg}</span>}
-        <span className="ml-auto text-foreground/60">{data.length} Einträge</span>
+        <span className="ml-auto text-foreground/60">{sortedData.length} Einträge</span>
       </div>
 
       <div className="overflow-x-auto">
@@ -190,38 +346,22 @@ export default function MitgliederlistePage() {
           <thead>
             <tr>
               {selected.map(f => (
-                <th key={f} className="text-left px-2 py-1 border-b border-black/10 dark:border-white/10 whitespace-nowrap">{FIELD_LABELS[f] || f.replace(/_/g," ")}</th>
+                <th key={f} className="text-left px-2 py-1 border-b border-black/10 dark:border-white/10 whitespace-nowrap">
+                  <button type="button" onClick={()=>cycleSort(f)} className="flex items-center group">
+                    <span className="group-hover:underline">{FIELD_LABELS[f] || f.replace(/_/g," ")}</span>
+                    {renderSortIndicator(f)}
+                  </button>
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {data.map(row => (
+            {sortedData.map(row => (
               <tr key={row.id} className="odd:bg-foreground-light even:bg-background">
-                {selected.map(f => {
-                  if (f === "name") {
-                    const display = `${row.vorname || ""} ${row.name || ""}`.trim() || `#${row.id}`;
-                    return (
-                      <td key={f} className="px-2 py-1 whitespace-nowrap">
-                        <Link href={`/mitgliederliste/${row.id}`} className="text-blue-600 hover:underline">{display}</Link>
-                      </td>
-                    );
-                  }
-                  let val = row[f];
-                  if (val == null) return <td key={f} className="px-2 py-1 whitespace-nowrap"></td>;
-                  if (DATE_FIELDS.has(f) && val) {
-                    try { val = new Date(String(val)).toLocaleDateString("de-DE"); } catch {}
-                  }
-                  if (BOOLEAN_FIELDS.has(f)) {
-                    val = val ? "✓" : "";
-                  }
-                  if (typeof val === "string" && val.length > 60) {
-                    val = val.slice(0,57)+"…";
-                  }
-                  return <td key={f} className="px-2 py-1 whitespace-nowrap">{String(val)}</td>;
-                })}
+                {selected.map(f => renderCell(row,f))}
               </tr>
             ))}
-            {!loading && !data.length && !error && (
+            {!loading && !sortedData.length && !error && (
               <tr><td colSpan={selected.length} className="px-2 py-4 text-center text-foreground/60">Keine Daten gefunden</td></tr>
             )}
           </tbody>
