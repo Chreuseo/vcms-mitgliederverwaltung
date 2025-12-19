@@ -8,7 +8,7 @@ WORKDIR /app
 # System deps for native modules (e.g., sharp) and Prisma engines
 RUN apk add --no-cache libc6-compat openssl
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+RUN npm install --include=dev --no-audit --no-fund
 
 # -----------------------------
 # 2) Builder layer
