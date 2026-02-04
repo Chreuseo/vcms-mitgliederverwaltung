@@ -4,6 +4,7 @@ import { EDITABLE_FIELDS, DATE_FIELDS, BOOLEAN_FIELDS, INT_FIELDS } from "@/lib/
 import { authorizeMitglieder } from "@/lib/mitglieder/auth";
 import type { Field } from "@/lib/mitglieder/constants";
 import { syncUserGroupChange } from "@/lib/keycloak/groups";
+import { updateUserAttributes } from "@/lib/keycloak/users";
 
 function parseId(param: string | null): number | null {
   if (!param) return null;
@@ -97,6 +98,29 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   try {
     const updated = await prisma.basePerson.update({ where: { id }, data: updateData });
 
+    // Direkt Keycloak-Attribute überschreiben basierend auf aktualisierten Feldern
+    if (updated.keycloak_id) {
+      const trimOrNull = (v: string | null | undefined) => {
+        const s = (v ?? "").toString().trim();
+        return s.length ? s : null;
+      };
+      // hv-mitglied als Integer 0/1 oder null
+      const hvValue = updated.hausvereinsmitglied == null ? null : (updated.hausvereinsmitglied ? 1 : 0);
+      const attrPayload: Record<string, string | number | null | undefined> = {
+        strasse: trimOrNull(updated.strasse1 as string | null | undefined),
+        plz: trimOrNull(updated.plz1 as string | null | undefined),
+        ort: trimOrNull(updated.ort1 as string | null | undefined),
+        status: trimOrNull(updated.status as string | null | undefined),
+        "hv-mitglied": hvValue,
+      };
+      try {
+        await updateUserAttributes(updated.keycloak_id, attrPayload);
+      } catch (e) {
+        // Fehler wird nicht als fatal betrachtet, da lokale DB aktualisiert wurde
+        console.error("[kc-attr-sync] Fehler bei UpdateUserAttributes", e);
+      }
+    }
+
     // Gruppenwechsel prüfen und Keycloak synchronisieren
     let groupSyncDebug: { skipped?: boolean; reason?: string; oldGroup?: string; newGroup?: string; oldKc?: string | null; newKc?: string | null } | undefined = undefined;
     if (Object.prototype.hasOwnProperty.call(updateData, "gruppe")) {
@@ -129,7 +153,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       }
     }
 
-    return NextResponse.json({ data: updated, groupSync, groupSyncDebug });
+    return NextResponse.json({ data: updated, groupSync });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("Record to update not found")) return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });

@@ -102,7 +102,8 @@ export default function MitgliederlistePage() {
       const res = await fetch('/api/mitglieder/sync-emails', { method: 'POST' });
       const json = await res.json().catch(()=>({ error: 'Unbekannte Antwort'}));
       if (!res.ok) { setSyncMsg(json.error || res.statusText); return; }
-      setSyncMsg(`Aktualisiert: ${json.updated} / ${json.attempted}`);
+      const attrPart = typeof json.attributesUpdated === 'number' ? `, Attribute: ${json.attributesUpdated}` : '';
+      setSyncMsg(`Aktualisiert: ${json.updated} / ${json.attempted}${attrPart}`);
       await load();
     } catch (e) { setSyncMsg(e instanceof Error ? e.message : String(e)); }
     finally { setSyncing(false); }
@@ -341,7 +342,7 @@ export default function MitgliederlistePage() {
       <div className="flex items-center gap-4 text-sm">
         <button onClick={load} disabled={loading} className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50">Neu laden</button>
         <Link href="/mitgliederliste/neu" className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10">Neuer Eintrag</Link>
-        <button onClick={runSync} disabled={syncing} className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50">{syncing? 'Sync…':'Sync Mails from Keycloak'}</button>
+        <button onClick={runSync} disabled={syncing} className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50">{syncing? 'Sync…':'Sync mit Keycloak (Mails & Attribute)'}</button>
         {loading && <span>Lädt…</span>}
         {error && <span className="text-red-600">{error}</span>}
         {syncMsg && <span className="text-foreground/60">{syncMsg}</span>}

@@ -65,14 +65,13 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
       if (existing?.id) return { id: existing.id, created: false };
       return { error: "Konflikt (409) ohne ID", status: 409 };
     }
-    const txt = await resp.text();
     return { error: `Keycloak Fehler ${resp.status}`, status: resp.status };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
 }
 
-export interface KeycloakUser { id: string; email?: string; username?: string; firstName?: string; lastName?: string; enabled?: boolean }
+export interface KeycloakUser { id: string; email?: string; username?: string; firstName?: string; lastName?: string; enabled?: boolean; emailVerified?: boolean; attributes?: Record<string, string[]> }
 
 async function searchUserByEmail(email: string, token: string): Promise<KeycloakUser | null> {
   try {
@@ -111,3 +110,51 @@ export async function fetchUsersBatch(ids: string[]): Promise<Record<string, Key
   return result;
 }
 
+export interface UpdateUserAttributesResult { ok: boolean; status?: number; error?: string }
+
+export async function updateUserAttributes(id: string, newAttributes: Record<string, string | number | null | undefined>): Promise<UpdateUserAttributesResult> {
+  const token = await getAdminToken();
+  if (!token) return { ok: false, error: "Keycloak Token nicht verfügbar" };
+  try {
+    // Bestehenden User laden, um Merge der Attribute zu machen und Felder nicht zu überschreiben
+    const existing = await fetch(`${EFFECTIVE_BASE_URL}/admin/realms/${encodeURIComponent(EFFECTIVE_REALM)}/users/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    if (!existing.ok) {
+      return { ok: false, status: existing.status, error: `User ${id} nicht gefunden` };
+    }
+    const user = await existing.json() as KeycloakUser;
+    const mergedAttrs: Record<string, string[]> = { ...(user.attributes || {}) };
+    for (const [key, value] of Object.entries(newAttributes)) {
+      if (value === null || value === undefined || value === "") {
+        // Attribut entfernen, falls vorhanden
+        if (key in mergedAttrs) delete mergedAttrs[key];
+      } else {
+        mergedAttrs[key] = [String(value)];
+      }
+    }
+    const body = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      enabled: user.enabled ?? true,
+      emailVerified: user.emailVerified ?? false,
+      attributes: mergedAttrs,
+    };
+
+    const resp = await fetch(`${EFFECTIVE_BASE_URL}/admin/realms/${encodeURIComponent(EFFECTIVE_REALM)}/users/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(()=>"");
+      debug("updateUserAttributes failed", { status: resp.status, txt });
+      return { ok: false, status: resp.status, error: `Update fehlgeschlagen (${resp.status})` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
