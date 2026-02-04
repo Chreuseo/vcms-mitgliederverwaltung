@@ -6,6 +6,9 @@ import { ALL_FIELDS, Field, DATE_FIELDS, BOOLEAN_FIELDS, FIELD_LABELS } from "@/
 // Standardauswahl für UI (beibehaltener lokaler Default – unterscheidet sich von DEFAULT_LIST_FIELDS)
 const DEFAULT_FIELDS: Field[] = ["name","strasse1","plz1","ort1","email", "datum_geburtstag"];
 
+// NEU: Default-Gruppenfilter – verwende die einstelligen Codes aus BaseGruppe.bezeichnung
+const DEFAULT_GROUP_FILTER = ["B", "F", "P"];
+
 interface PersonRow {
   id: number;
   [k: string]: unknown;
@@ -32,7 +35,8 @@ export default function MitgliederlistePage() {
   const [error, setError] = useState<string | null>(null);
   const [statusOptions, setStatusOptions] = useState<MetaOption[]>([]);
   const [groupOptions, setGroupOptions] = useState<MetaOption[]>([]);
-  const [filterGroups, setFilterGroups] = useState<string[]>([]);
+  // Default: vorgegebene Gruppen gefiltert
+  const [filterGroups, setFilterGroups] = useState<string[]>(DEFAULT_GROUP_FILTER);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
   const [filterHvm, setFilterHvm] = useState<'all'|'yes'|'no'>('all');
   const [showColumnsBox, setShowColumnsBox] = useState(false);
@@ -86,7 +90,10 @@ export default function MitgliederlistePage() {
   };
 
   const resetFilters = () => {
-    setFilterGroups([]); setFilterStatus([]); setFilterHvm('all');
+    // Zurücksetzen auf die Default-Gruppen, keine Status, HVM = all
+    setFilterGroups(DEFAULT_GROUP_FILTER);
+    setFilterStatus([]);
+    setFilterHvm('all');
   };
 
   const runSync = async () => {
