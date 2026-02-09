@@ -112,6 +112,46 @@ export async function fetchUsersBatch(ids: string[]): Promise<Record<string, Key
 
 export interface UpdateUserAttributesResult { ok: boolean; status?: number; error?: string }
 
+export interface UpdateUserEmailResult { ok: boolean; status?: number; error?: string }
+
+export async function updateUserEmail(id: string, params: { email: string; username?: string; firstName?: string | null; lastName?: string | null }): Promise<UpdateUserEmailResult> {
+  const token = await getAdminToken();
+  if (!token) return { ok: false, error: "Keycloak Token nicht verfügbar" };
+  try {
+    const existing = await fetch(`${EFFECTIVE_BASE_URL}/admin/realms/${encodeURIComponent(EFFECTIVE_REALM)}/users/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    if (!existing.ok) {
+      return { ok: false, status: existing.status, error: `User ${id} nicht gefunden` };
+    }
+    const user = await existing.json() as KeycloakUser;
+
+    const body = {
+      id: user.id,
+      email: params.email,
+      username: params.username ?? params.email,
+      firstName: params.firstName ?? user.firstName,
+      lastName: params.lastName ?? user.lastName,
+      enabled: user.enabled ?? true,
+      emailVerified: user.emailVerified ?? false,
+      attributes: user.attributes || {},
+    };
+
+    const resp = await fetch(`${EFFECTIVE_BASE_URL}/admin/realms/${encodeURIComponent(EFFECTIVE_REALM)}/users/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(()=>"");
+      debug("updateUserEmail failed", { status: resp.status, txt });
+      return { ok: false, status: resp.status, error: `Update fehlgeschlagen (${resp.status})` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function updateUserAttributes(id: string, newAttributes: Record<string, string | number | null | undefined>): Promise<UpdateUserAttributesResult> {
   const token = await getAdminToken();
   if (!token) return { ok: false, error: "Keycloak Token nicht verfügbar" };

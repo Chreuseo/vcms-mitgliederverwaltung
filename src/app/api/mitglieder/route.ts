@@ -4,6 +4,7 @@ import { ALL_FIELDS, DEFAULT_LIST_FIELDS, EDITABLE_FIELDS, DATE_FIELDS, BOOLEAN_
 import type { Field } from "@/lib/mitglieder/constants";
 import { authorizeMitglieder } from "@/lib/mitglieder/auth";
 import { createUser, deleteUser } from "@/lib/keycloak/users";
+import { makePlaceholderEmail } from "@/lib/mitglieder/emailPlaceholder";
 
 // Stelle sicher, dass "vorname" immer in der Abfrage enthalten ist
 function parseFieldsParam(param: string | null): Field[] {
@@ -71,26 +72,22 @@ export async function POST(req: NextRequest) {
   if (typeof raw !== "object" || raw == null) return NextResponse.json({ error: "Body muss Objekt sein" }, { status: 400 });
   const body = raw as Record<string, unknown>;
 
-  // Pflichtfeld Email
-  const email = typeof body.email === "string" ? body.email.trim() : "";
-  if (!email) return NextResponse.json({ error: "Email erforderlich" }, { status: 400 });
-
-  // Keycloak zuerst anlegen (nur minimale Daten nötig)
   const vornameDraft = typeof body.vorname === "string" ? body.vorname.trim() || undefined : undefined;
   const nameDraft = typeof body.name === "string" ? body.name.trim() || undefined : undefined;
-  const kc = await createUser({ email, firstName: vornameDraft, lastName: nameDraft });
-  if (kc.error || !kc.id) {
-    return NextResponse.json({ error: "Keycloak User Erstellung fehlgeschlagen", detail: kc.error }, { status: 502 });
-  }
 
-  // Datenobjekt aufbauen – analog zur PATCH Logik, aber für Create
-  const data: Record<string, unknown> = { email, keycloak_id: kc.id };
+  // Email ist optional: wenn leer, wird ein Dummy für Keycloak erzeugt.
+  const emailInput = typeof body.email === "string" ? body.email.trim() : "";
+
+  // Datenobjekt aufbauen – analog zur bisherigen Logik
+  const data: Record<string, unknown> = {};
+  // Email nur setzen, wenn vorhanden (sonst bleibt sie null in der DB)
+  if (emailInput) data.email = emailInput;
 
   for (const key of EDITABLE_FIELDS) {
     if (key === "id" || key === "leibmitglied" || key === "email" || key === "keycloak_id") continue; // ausgeschlossen / separat
     if (!Object.prototype.hasOwnProperty.call(body, key)) {
       if (key === "hausvereinsmitglied") data.hausvereinsmitglied = false; // Default false statt null
-      continue; // Feld wurde nicht geschickt
+      continue;
     }
     const value = (body as Record<string, unknown>)[key];
 
@@ -107,7 +104,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (BOOLEAN_FIELDS.has(key)) {
-      if (typeof value === "boolean") data[key] = value; else if (typeof value === "string") data[key] = value === "true"; else data[key] = false; // Default false
+      if (typeof value === "boolean") data[key] = value; else if (typeof value === "string") data[key] = value === "true"; else data[key] = false;
       continue;
     }
 
@@ -121,7 +118,7 @@ export async function POST(req: NextRequest) {
 
     switch (key) {
       case "gruppe":
-        data.gruppe = value == null || value === "" ? undefined : String(value).slice(0,1);
+        data.gruppe = value == null || value === "" ? undefined : String(value).slice(0, 1);
         break;
       case "status":
         data.status = value == null || value === "" ? null : String(value);
@@ -131,20 +128,63 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Sicherheit: falls hausvereinsmitglied immer noch undefined -> false
   if (typeof data.hausvereinsmitglied === "undefined") data.hausvereinsmitglied = false;
 
-  let created: unknown;
-  try {
-    created = await prisma.basePerson.create({ data });
-  } catch (e: unknown) {
-    // Rollback Keycloak User falls DB Fehler
-    await deleteUser(kc.id);
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("Unique constraint failed") || msg.toLowerCase().includes("unique")) {
-      return NextResponse.json({ error: "Email bereits vorhanden" }, { status: 409 });
+  // Fall A: Email vorhanden -> wie bisher, Keycloak zuerst.
+  if (emailInput) {
+    const kc = await createUser({ email: emailInput, firstName: vornameDraft, lastName: nameDraft });
+    if (kc.error || !kc.id) {
+      return NextResponse.json({ error: "Keycloak User Erstellung fehlgeschlagen", detail: kc.error }, { status: 502 });
     }
+
+    data.keycloak_id = kc.id;
+
+    let created: unknown;
+    try {
+      created = await prisma.basePerson.create({ data });
+    } catch (e: unknown) {
+      await deleteUser(kc.id);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("Unique constraint failed") || msg.toLowerCase().includes("unique")) {
+        return NextResponse.json({ error: "Email bereits vorhanden" }, { status: 409 });
+      }
+      return NextResponse.json({ error: "DB Fehler", detail: msg }, { status: 500 });
+    }
+    return NextResponse.json({ data: created, keycloak: { id: kc.id, created: kc.created } }, { status: 201 });
+  }
+
+  // Fall B: keine Email -> zuerst DB anlegen, damit wir eine ID für eine stabile Dummy-Mail haben.
+  let createdPerson: { id: number };
+  try {
+    createdPerson = await prisma.basePerson.create({ data, select: { id: true } });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: "DB Fehler", detail: msg }, { status: 500 });
   }
-  return NextResponse.json({ data: created, keycloak: { id: kc.id, created: kc.created } }, { status: 201 });
+
+  let placeholderEmail: string;
+  try {
+    placeholderEmail = makePlaceholderEmail({ vorname: vornameDraft, nachname: nameDraft, id: createdPerson.id });
+  } catch (e: unknown) {
+    // Aufräumen: Person wieder löschen, wenn ENV fehlt o.ä.
+    await prisma.basePerson.delete({ where: { id: createdPerson.id } }).catch(() => undefined);
+    return NextResponse.json({ error: "Dummy-Email konnte nicht generiert werden", detail: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
+
+  const kc = await createUser({ email: placeholderEmail, firstName: vornameDraft, lastName: nameDraft });
+  if (kc.error || !kc.id) {
+    // Rollback DB, da wir die Person ohne Keycloak nicht stehen lassen wollen
+    await prisma.basePerson.delete({ where: { id: createdPerson.id } }).catch(() => undefined);
+    return NextResponse.json({ error: "Keycloak User Erstellung fehlgeschlagen", detail: kc.error }, { status: 502 });
+  }
+
+  try {
+    const updated = await prisma.basePerson.update({ where: { id: createdPerson.id }, data: { keycloak_id: kc.id } });
+    return NextResponse.json({ data: updated, keycloak: { id: kc.id, created: kc.created }, placeholderEmail }, { status: 201 });
+  } catch (e: unknown) {
+    // Rollback: Keycloak-User löschen + DB-Record löschen
+    await deleteUser(kc.id);
+    await prisma.basePerson.delete({ where: { id: createdPerson.id } }).catch(() => undefined);
+    return NextResponse.json({ error: "DB Fehler", detail: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
 }
