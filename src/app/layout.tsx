@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Burggraf Mitgliederverwaltung",
-  description: "Burggraf Mitgliederverwaltung",
+  title: "Mitgliederverwaltung",
+  description: "Mitgliederverwaltung",
 };
 
 export default function RootLayout({
