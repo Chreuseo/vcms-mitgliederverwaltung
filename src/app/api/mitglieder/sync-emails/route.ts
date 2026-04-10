@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   const auth = await authorizeMitglieder(req);
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
-  // 1) Personen mit Keycloak-ID: existing KC -> DB Sync (wie bisher)
+  // 1) Personen mit Keycloak-ID: lokale Email -> Keycloak Sync
   const personsWithKc = await prisma.basePerson.findMany({
     where: { keycloak_id: { not: null } },
     select: {
@@ -43,38 +43,38 @@ export async function POST(req: NextRequest) {
   for (const kcId of kcIds) {
     const user = users[kcId];
     const personId = idMap[kcId];
-    const p = personsWithKc.find(pp => pp.id === personId)!;
+    const p = personsWithKc.find((pp: (typeof personsWithKc)[number]) => pp.id === personId)!;
     if (!user) { updates.push({ id: personId, oldEmail: p.email, newEmail: "", skipped: "User nicht gefunden" }); continue; }
 
     const kcEmail = (user.email || "").trim();
+    const localEmail = (p.email || "").trim();
 
-    // Falls der Keycloak-User (noch) keine Mailadresse hat: Dummy-Mail setzen
-    if (!kcEmail) {
-      try {
-        const placeholder = makePlaceholderEmail({
-          vorname: p.vorname,
-          nachname: p.name,
-          id: p.id,
-          domain: process.env.MAIL_PLACEHOLDER_DOMAIN,
-        });
-        const r = await updateUserEmail(kcId, { email: placeholder, username: placeholder, firstName: p.vorname, lastName: p.name });
-        if (r.ok) {
-          dummyEmailsSet++;
-          updates.push({ id: personId, oldEmail: p.email, newEmail: placeholder });
-        } else {
-          updates.push({ id: personId, oldEmail: p.email, newEmail: placeholder, skipped: r.status === 409 ? "Keycloak Konflikt (409)" : (r.error || "Keycloak Update fehlgeschlagen") });
-        }
-      } catch (e) {
-        updates.push({ id: personId, oldEmail: p.email, newEmail: "", skipped: e instanceof Error ? e.message : String(e) });
-      }
-    } else if (p.email !== kcEmail) {
-      // Email aus Keycloak nach lokal synchronisieren
-      try {
-        await prisma.basePerson.update({ where: { id: personId }, data: { email: kcEmail } });
-        updates.push({ id: personId, oldEmail: p.email, newEmail: kcEmail });
+    // Zieladresse fuer den Keycloak-User. In diesem Endpoint wird die DB-Email NICHT zurueckgeschrieben.
+    const targetKeycloakEmail = localEmail || kcEmail || makePlaceholderEmail({
+      vorname: p.vorname,
+      nachname: p.name,
+      id: p.id,
+      domain: process.env.MAIL_PLACEHOLDER_DOMAIN,
+    });
+
+    if (targetKeycloakEmail !== kcEmail) {
+      const r = await updateUserEmail(kcId, {
+        email: targetKeycloakEmail,
+        username: targetKeycloakEmail,
+        firstName: p.vorname,
+        lastName: p.name,
+      });
+      if (r.ok) {
         updatedCount++;
-      } catch {
-        updates.push({ id: personId, oldEmail: p.email, newEmail: kcEmail, skipped: "Unique Konflikt" });
+        if (!localEmail) dummyEmailsSet++;
+        updates.push({ id: personId, oldEmail: kcEmail || null, newEmail: targetKeycloakEmail });
+      } else {
+        updates.push({
+          id: personId,
+          oldEmail: kcEmail || null,
+          newEmail: targetKeycloakEmail,
+          skipped: r.status === 409 ? "Keycloak Konflikt (409)" : (r.error || "Keycloak Update fehlgeschlagen"),
+        });
       }
     }
 

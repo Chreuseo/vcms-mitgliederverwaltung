@@ -25,8 +25,10 @@ interface ApiResponse {
 interface MetaOption { bezeichnung: string; beschreibung: string | null }
 
 // Sortiermodi
-type SortMode = 'normal' | 'date-full' | 'date-day';
+type SortMode = 'normal' | 'date-full' | 'date-day' | 'name-last' | 'name-first';
 interface SortConfig { field: Field | null; direction: 'asc'|'desc'; mode: SortMode; }
+
+const DEFAULT_SORT: SortConfig = { field: 'name', direction: 'asc', mode: 'name-last' };
 
 export default function MitgliederlistePage() {
   const [selected, setSelected] = useState<Field[]>(DEFAULT_FIELDS);
@@ -43,8 +45,8 @@ export default function MitgliederlistePage() {
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
-  // NEU: Sortierkonfiguration
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ field: null, direction: 'asc', mode: 'normal' });
+  // Standard: nach Nachname aufsteigend
+  const [sortConfig, setSortConfig] = useState<SortConfig>(DEFAULT_SORT);
 
   const queryFields = useMemo(() => {
     const f = ["id", ...selected];
@@ -131,9 +133,33 @@ export default function MitgliederlistePage() {
     return parseInt(m[1],10);
   };
 
-  const comparator = (a: PersonRow, b: PersonRow): number => {
-    const field = sortConfig.field;
+  const compareNullableText = (aVal: unknown, bVal: unknown): number => {
+    const aText = String(aVal ?? '').trim();
+    const bText = String(bVal ?? '').trim();
+    const aEmpty = aText === '';
+    const bEmpty = bText === '';
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;
+    if (bEmpty) return -1;
+    return aText.localeCompare(bText, 'de', { sensitivity: 'base' });
+  };
+
+  const activeSort = sortConfig.field ? sortConfig : DEFAULT_SORT;
+
+  const comparator = useCallback((a: PersonRow, b: PersonRow): number => {
+    const field = activeSort.field;
     if (!field) return 0;
+
+    if (field === 'name' && (activeSort.mode === 'name-last' || activeSort.mode === 'name-first')) {
+      const primaryKey = activeSort.mode === 'name-last' ? 'name' : 'vorname';
+      const secondaryKey = activeSort.mode === 'name-last' ? 'vorname' : 'name';
+      const primary = compareNullableText(a[primaryKey], b[primaryKey]);
+      if (primary !== 0) return primary;
+      const secondary = compareNullableText(a[secondaryKey], b[secondaryKey]);
+      if (secondary !== 0) return secondary;
+      return Number(a.id) - Number(b.id);
+    }
+
     const va = a[field];
     const vb = b[field];
     // Null / undefined Handling
@@ -150,7 +176,7 @@ export default function MitgliederlistePage() {
       if (!da && !db) return 0;
       if (!da) return 1;
       if (!db) return -1;
-      if (sortConfig.mode === 'date-day') {
+      if (activeSort.mode === 'date-day') {
         const doa = dayOfYear(da);
         const dob = dayOfYear(db);
         return doa - dob;
@@ -190,45 +216,59 @@ export default function MitgliederlistePage() {
 
     // String Vergleich (case-insensitive, locale de)
     return String(va).localeCompare(String(vb), 'de', { sensitivity: 'base' });
-  };
+  }, [activeSort]);
 
   const sortedData = useMemo(() => {
-    if (!sortConfig.field) return data;
-    const factor = sortConfig.direction === 'asc' ? 1 : -1;
+    const factor = activeSort.direction === 'asc' ? 1 : -1;
     return [...data].sort((a,b) => comparator(a,b) * factor);
-  }, [data, sortConfig]);
+  }, [data, comparator, activeSort.direction]);
 
   // Zyklus der Sortierung beim Klick auf Header
   const cycleSort = (field: Field) => {
     setSortConfig(cur => {
       // Wenn anderes Feld -> neu starten
       if (cur.field !== field) {
+        if (field === 'name') {
+          return DEFAULT_SORT;
+        }
         if (DATE_FIELDS.has(field) || field === 'datum_geburtstag') {
           return { field, direction: 'asc', mode: 'date-full' };
         }
         return { field, direction: 'asc', mode: 'normal' };
       }
       // Gleiches Feld
+      if (field === 'name') {
+        // Reihenfolge: Nachname asc -> Nachname desc -> Vorname asc -> Vorname desc -> Nachname asc
+        if (cur.mode === 'name-last' && cur.direction === 'asc') return { field, direction: 'desc', mode: 'name-last' };
+        if (cur.mode === 'name-last' && cur.direction === 'desc') return { field, direction: 'asc', mode: 'name-first' };
+        if (cur.mode === 'name-first' && cur.direction === 'asc') return { field, direction: 'desc', mode: 'name-first' };
+        return DEFAULT_SORT;
+      }
       if (DATE_FIELDS.has(field) || field === 'datum_geburtstag') {
         // Reihenfolge: date-full asc -> date-full desc -> date-day asc -> date-day desc -> unsort
         if (cur.mode === 'date-full' && cur.direction === 'asc') return { field, direction: 'desc', mode: 'date-full' };
         if (cur.mode === 'date-full' && cur.direction === 'desc') return { field, direction: 'asc', mode: 'date-day' };
         if (cur.mode === 'date-day' && cur.direction === 'asc') return { field, direction: 'desc', mode: 'date-day' };
-        // zurück zu unsortiert
-        return { field: null, direction: 'asc', mode: 'normal' };
+        // zurück zum Default (Nachname asc)
+        return DEFAULT_SORT;
       } else {
         // Nicht-Datum: normal asc -> normal desc -> unsort
         if (cur.direction === 'asc') return { field, direction: 'desc', mode: 'normal' };
-        return { field: null, direction: 'asc', mode: 'normal' };
+        return DEFAULT_SORT;
       }
     });
   };
 
   const renderSortIndicator = (field: Field) => {
-    if (sortConfig.field !== field) return null;
-    const dirSymbol = sortConfig.direction === 'asc' ? '↑' : '↓';
+    if (activeSort.field !== field) return null;
+    const dirSymbol = activeSort.direction === 'asc' ? '↑' : '↓';
+    if (field === 'name') {
+      const suffix = activeSort.mode === 'name-first' ? 'V' : 'N';
+      const title = activeSort.mode === 'name-first' ? 'Sortierung nach Vorname' : 'Sortierung nach Nachname';
+      return <span className="ml-1 text-xs" title={title}>{dirSymbol}{suffix}</span>;
+    }
     if (DATE_FIELDS.has(field) || field === 'datum_geburtstag') {
-      if (sortConfig.mode === 'date-day') {
+      if (activeSort.mode === 'date-day') {
         return <span className="ml-1 text-xs" title="Sortierung nach Tag im Jahr">{dirSymbol}T</span>;
       }
       return <span className="ml-1 text-xs" title="Sortierung nach vollständigem Datum">{dirSymbol}J</span>; // J = Jahr
@@ -264,7 +304,7 @@ export default function MitgliederlistePage() {
     <section className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Mitgliederliste</h1>
-        <p className="text-sm text-foreground/70 mt-1">Spalten & Filter anpassen. Klick auf Spaltenkopf sortiert (Datum: Jahr / Tag).</p>
+        <p className="text-sm text-foreground/70 mt-1">Spalten & Filter anpassen. Standard: Nachname aufsteigend (Name: Nachname/Vorname, Datum: Jahr/Tag).</p>
       </div>
 
       <div className="space-y-3">
