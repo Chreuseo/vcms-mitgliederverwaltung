@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ALL_FIELDS, DEFAULT_LIST_FIELDS, FIELD_LABELS } from "@/lib/mitglieder/constants";
 import type { Field } from "@/lib/mitglieder/constants";
 import { authorizeMitglieder } from "@/lib/mitglieder/auth";
+import { buildMitgliederWhere, parseMitgliederFiltersFromSearchParams } from "@/lib/mitglieder/filters";
 
 function parseBool(param: string | null, def = false): boolean {
   if (param == null) return def;
@@ -71,15 +72,10 @@ export async function GET(req: NextRequest) {
   const fields = parseFieldsParam(searchParams.get("fields"), searchParams.get("preset"), includeId);
   const select: Record<string, true> = Object.fromEntries(fields.map(f => [f, true])) as Record<string, true>;
 
-  const gruppeFilter = (searchParams.get("gruppe") || "").split(",").map(s => s.trim()).filter(Boolean);
-  const statusFilter = (searchParams.get("status") || "").split(",").map(s => s.trim()).filter(Boolean);
-  const hvm = searchParams.get("hvm");
+  const filters = parseMitgliederFiltersFromSearchParams(searchParams);
   const filename = (searchParams.get("filename") || "export").replace(/[^a-zA-Z0-9-_]/g, "_");
 
-  const where: Record<string, unknown> = {};
-  if (gruppeFilter.length) where.gruppe = { in: gruppeFilter.map(g => g.slice(0,1)) };
-  if (statusFilter.length) where.status = { in: statusFilter };
-  if (hvm === "yes") where.hausvereinsmitglied = true; else if (hvm === "no") where.hausvereinsmitglied = false;
+  const where = buildMitgliederWhere(filters);
 
   try {
     const rows = await prisma.basePerson.findMany({ select, where, orderBy: { id: "asc" } });

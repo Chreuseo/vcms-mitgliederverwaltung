@@ -45,8 +45,8 @@ export default function MitgliederlistePage() {
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
-  // Standard: nach Nachname aufsteigend
-  const [sortConfig, setSortConfig] = useState<SortConfig>(DEFAULT_SORT);
+  // NEU: Sortierkonfiguration
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ field: null, direction: 'asc', mode: 'normal' });
 
   const queryFields = useMemo(() => {
     const f = ["id", ...selected];
@@ -68,7 +68,8 @@ export default function MitgliederlistePage() {
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) {
         const j: ApiResponse = await res.json().catch(() => ({}));
-        throw new Error(j.error || res.statusText);
+        setError(j.error || res.statusText);
+        return;
       }
       const json: ApiResponse = await res.json();
       setData(json.data || []);
@@ -249,26 +250,21 @@ export default function MitgliederlistePage() {
         if (cur.mode === 'date-full' && cur.direction === 'asc') return { field, direction: 'desc', mode: 'date-full' };
         if (cur.mode === 'date-full' && cur.direction === 'desc') return { field, direction: 'asc', mode: 'date-day' };
         if (cur.mode === 'date-day' && cur.direction === 'asc') return { field, direction: 'desc', mode: 'date-day' };
-        // zurück zum Default (Nachname asc)
-        return DEFAULT_SORT;
+        // zurück zu unsortiert
+        return { field: null, direction: 'asc', mode: 'normal' };
       } else {
         // Nicht-Datum: normal asc -> normal desc -> unsort
         if (cur.direction === 'asc') return { field, direction: 'desc', mode: 'normal' };
-        return DEFAULT_SORT;
+        return { field: null, direction: 'asc', mode: 'normal' };
       }
     });
   };
 
   const renderSortIndicator = (field: Field) => {
-    if (activeSort.field !== field) return null;
-    const dirSymbol = activeSort.direction === 'asc' ? '↑' : '↓';
-    if (field === 'name') {
-      const suffix = activeSort.mode === 'name-first' ? 'V' : 'N';
-      const title = activeSort.mode === 'name-first' ? 'Sortierung nach Vorname' : 'Sortierung nach Nachname';
-      return <span className="ml-1 text-xs" title={title}>{dirSymbol}{suffix}</span>;
-    }
+    if (sortConfig.field !== field) return null;
+    const dirSymbol = sortConfig.direction === 'asc' ? '↑' : '↓';
     if (DATE_FIELDS.has(field) || field === 'datum_geburtstag') {
-      if (activeSort.mode === 'date-day') {
+      if (sortConfig.mode === 'date-day') {
         return <span className="ml-1 text-xs" title="Sortierung nach Tag im Jahr">{dirSymbol}T</span>;
       }
       return <span className="ml-1 text-xs" title="Sortierung nach vollständigem Datum">{dirSymbol}J</span>; // J = Jahr
@@ -304,7 +300,7 @@ export default function MitgliederlistePage() {
     <section className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Mitgliederliste</h1>
-        <p className="text-sm text-foreground/70 mt-1">Spalten & Filter anpassen. Standard: Nachname aufsteigend (Name: Nachname/Vorname, Datum: Jahr/Tag).</p>
+        <p className="text-sm text-foreground/70 mt-1">Spalten & Filter anpassen. Klick auf Spaltenkopf sortiert (Datum: Jahr / Tag).</p>
       </div>
 
       <div className="space-y-3">

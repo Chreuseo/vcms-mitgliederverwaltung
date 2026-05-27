@@ -39,6 +39,12 @@ export default function Navbar() {
             Export
           </Link>
           <Link
+            href="/rundmail"
+            className={`text-sm hover:underline ${isActive("/rundmail") ? "font-semibold" : "text-foreground/80"}`}
+          >
+            Rundmail
+          </Link>
+          <Link
             href="/import"
             className={`text-sm hover:underline ${isActive("/import") ? "font-semibold" : "text-foreground/80"}`}
           >

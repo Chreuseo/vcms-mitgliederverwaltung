@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VCMS Mitgliederverwaltung
 
-## Getting Started
-
-First, run the development server:
+## Entwicklung starten
 
 ```bash
+npm install
+npx prisma generate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Die Anwendung läuft danach standardmäßig unter [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Datenbank / Prisma
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Für die neuen Rundmail-Tabellen muss das aktualisierte Prisma-Schema in die Datenbank übernommen werden.
 
-## Learn More
+```bash
+npx prisma generate
+npx prisma db push
+```
 
-To learn more about Next.js, take a look at the following resources:
+Wenn ihr stattdessen Migrationen verwendet, ersetzt `db push` entsprechend durch euren üblichen Migrations-Workflow.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Rundmail
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Die neue Seite ist unter `/rundmail` erreichbar.
 
-## Deploy on Vercel
+Funktionen:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Filterbox analog zur Mitgliederliste (Gruppe, Status, Hausvereinsmitglied)
+- zusätzliches Ausschlussfeld per RegEx, z. B. für Dummy-Adressen
+- Betreff, Inhalt und mehrere Anhänge
+- Versand an einzelne Empfänger
+- Speicherung des Versands in neuen Rundmail-Tabellen
+- optionaler PDF-Download des Versandprotokolls nach dem Versand
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Benötigte Environment-Variablen
+
+Für Berechtigung und Versand werden zusätzlich zu den bestehenden Keycloak-/NextAuth-Variablen folgende Werte benötigt:
+
+```env
+RUNDMAIL_ROLES=rolle-a;rolle-b;rolle-c
+Custom_Corporation=Meine_Verbindung
+SMTP_HOST=smtp.example.org
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=smtp-user
+SMTP_PASS=smtp-passwort
+SMTP_FROM=VCMS <noreply@example.org>
+# optional
+RUNDMAIL_ATTACHMENT_DIR=/pfad/zu/rundmail-attachments
+```
+
+Hinweise:
+
+- `RUNDMAIL_ROLES` akzeptiert mehrere Rollen; Trennung per Semikolon.
+- `Custom_Corporation` steuert den sichtbaren Absendernamen im Format `Custom_Corporation im Auftrag von Vorname Nachname`.
+- Eine Rundmail darf nur von Benutzern mit mindestens einer der konfigurierten Rollen versendet bzw. als PDF geladen werden.
+- `RUNDMAIL_ATTACHMENT_DIR` ist optional. Ohne Angabe werden Anhänge unter `var/rundmail-attachments` im Projekt gespeichert.
+
+## Qualitätssicherung
+
+Vor dem Commit wurden folgende Prüfungen erfolgreich ausgeführt:
+
+```bash
+npx prisma generate
+npx tsc --noEmit
+npm run lint
+```

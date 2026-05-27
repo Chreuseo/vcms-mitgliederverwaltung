@@ -69,8 +69,70 @@ model BasePerson {
   validationkey            String?   @db.VarChar(255)
   keycloak_id              String?   @unique @db.VarChar(190)
   hausvereinsmitglied      Boolean?
+  rundmailRecipients       RundmailRecipient[]
 
   @@map("base_person")
+}
+
+model Rundmail {
+  id               Int                   @id @default(autoincrement())
+  createdAt        DateTime              @default(now())
+  senderKeycloakId String?               @db.VarChar(190)
+  senderEmail      String?               @db.VarChar(255)
+  senderName       String?               @db.VarChar(255)
+  senderUsername   String?               @db.VarChar(255)
+  subject          String                @db.VarChar(255)
+  content          String                @db.Text
+  excludeRegex     String?               @db.VarChar(500)
+  skipPdfDownload  Boolean               @default(false)
+  recipients       RundmailRecipient[]
+  attachments      RundmailMailAttachment[]
+
+  @@map("rundmail")
+}
+
+model RundmailRecipient {
+  id             Int        @id @default(autoincrement())
+  rundmailId     Int
+  personId       Int
+  email          String     @db.VarChar(255)
+  recipientName  String?    @db.VarChar(255)
+  deliveryStatus String     @default("sent") @db.VarChar(32)
+  errorMessage   String?    @db.VarChar(1000)
+  sentAt         DateTime   @default(now())
+  rundmail       Rundmail   @relation(fields: [rundmailId], references: [id], onDelete: Cascade)
+  person         BasePerson @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@index([rundmailId])
+  @@index([personId])
+  @@map("rundmail_recipient")
+}
+
+model RundmailAttachment {
+  id          Int                      @id @default(autoincrement())
+  sha256      String                   @unique @db.VarChar(64)
+  storagePath String                   @unique @db.VarChar(500)
+  mimeType    String?                  @db.VarChar(255)
+  size        Int
+  createdAt   DateTime                 @default(now())
+  mails       RundmailMailAttachment[]
+
+  @@map("rundmail_attachment")
+}
+
+model RundmailMailAttachment {
+  id           Int                @id @default(autoincrement())
+  rundmailId   Int
+  attachmentId Int
+  fileName     String             @db.VarChar(255)
+  createdAt    DateTime           @default(now())
+  rundmail     Rundmail           @relation(fields: [rundmailId], references: [id], onDelete: Cascade)
+  attachment   RundmailAttachment @relation(fields: [attachmentId], references: [id], onDelete: Restrict)
+
+  @@index([rundmailId])
+  @@index([attachmentId])
+  @@unique([rundmailId, attachmentId, fileName])
+  @@map("rundmail_mail_attachment")
 }
 
 model BaseStatus {

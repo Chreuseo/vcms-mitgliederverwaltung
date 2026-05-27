@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ALL_FIELDS, DEFAULT_LIST_FIELDS, EDITABLE_FIELDS, DATE_FIELDS, BOOLEAN_FIELDS, INT_FIELDS } from "@/lib/mitglieder/constants";
 import type { Field } from "@/lib/mitglieder/constants";
 import { authorizeMitglieder } from "@/lib/mitglieder/auth";
+import { buildMitgliederWhere, parseMitgliederFiltersFromSearchParams } from "@/lib/mitglieder/filters";
 import { createUser, deleteUser } from "@/lib/keycloak/users";
 import { makePlaceholderEmail } from "@/lib/mitglieder/emailPlaceholder";
 
@@ -19,12 +20,6 @@ function parseFieldsParam(param: string | null): Field[] {
   return valid.length ? valid : (DEFAULT_LIST_FIELDS as Field[]);
 }
 
-function parseMulti(param: string | null): string[] | undefined {
-  if (!param) return undefined;
-  const arr = param.split(",").map(s => s.trim()).filter(Boolean);
-  return arr.length ? arr : undefined;
-}
-
 async function authorize(req: NextRequest) { return authorizeMitglieder(req); }
 
 export async function GET(req: NextRequest) {
@@ -36,15 +31,10 @@ export async function GET(req: NextRequest) {
   const fields = parseFieldsParam(searchParams.get("fields"));
   const select: Record<string, true> = Object.fromEntries(fields.map(f => [f, true])) as Record<string, true>;
 
-  const gruppeFilter = parseMulti(searchParams.get("gruppe"));
-  const statusFilter = parseMulti(searchParams.get("status"));
-  const hvm = searchParams.get("hvm");
+  const filters = parseMitgliederFiltersFromSearchParams(searchParams);
   const wantMeta = searchParams.get("meta") === "1";
 
-  const where: Record<string, unknown> = {};
-  if (gruppeFilter) where.gruppe = { in: gruppeFilter.map(g => g.slice(0,1)) };
-  if (statusFilter) where.status = { in: statusFilter };
-  if (hvm === "yes") where.hausvereinsmitglied = true; else if (hvm === "no") where.hausvereinsmitglied = false;
+  const where = buildMitgliederWhere(filters);
 
   try {
     const dataPromise = prisma.basePerson.findMany({ select, where, orderBy: { id: "asc" } });
