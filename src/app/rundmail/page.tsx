@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import RichTextEditor from "@/app/components/RichTextEditor";
 
 interface MetaOption {
   bezeichnung: string;
@@ -44,6 +45,11 @@ interface SendResponse {
   failures?: Array<{ recipientId: number; email: string; error: string }>;
 }
 
+interface AttachmentItem {
+  id: string;
+  file: File;
+}
+
 const DEFAULT_GROUP_FILTER = ["B", "F", "P"];
 
 function buildQuery(params: Record<string, string | undefined>) {
@@ -64,7 +70,7 @@ export default function RundmailPage() {
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
   const [skipPdfDownload, setSkipPdfDownload] = useState(false);
-  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [showFilterBox, setShowFilterBox] = useState(true);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sending, setSending] = useState(false);
@@ -74,6 +80,7 @@ export default function RundmailPage() {
   const [excluded, setExcluded] = useState<PreviewRecipient[]>([]);
   const [summary, setSummary] = useState<PreviewResponse["summary"]>();
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const query = useMemo(() => buildQuery({
     gruppe: filterGroups.length ? filterGroups.join(",") : undefined,
@@ -93,21 +100,41 @@ export default function RundmailPage() {
     setExcludeRegex("");
   };
 
+  const addAttachments = (files: FileList | null) => {
+    if (!files?.length) return;
+    const nextItems = Array.from(files).map((file) => ({
+      id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+      file,
+    }));
+    setAttachments((current) => [...current, ...nextItems]);
+    setFileInputKey((current) => current + 1);
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((current) => current.filter((attachment) => attachment.id !== id));
+  };
+
   const loadPreview = useCallback(async () => {
     setLoadingPreview(true);
     setError(null);
     try {
       const res = await fetch(`/api/rundmail/preview${query ? `?${query}` : ""}`, { cache: "no-store" });
       const json = await res.json().catch(() => ({} as PreviewResponse));
-      if (!res.ok) {
-        throw new Error(json.error || res.statusText);
+
+      if (res.ok) {
+        setGroupOptions(json.groupOptions || []);
+        setStatusOptions(json.statusOptions || []);
+        setSendable(json.sendable || []);
+        setExcluded(json.excluded || []);
+        setSummary(json.summary);
+        return;
       }
 
-      setGroupOptions(json.groupOptions || []);
-      setStatusOptions(json.statusOptions || []);
-      setSendable(json.sendable || []);
-      setExcluded(json.excluded || []);
-      setSummary(json.summary);
+      const message = json.error || res.statusText;
+      setError(message);
+      setSendable([]);
+      setExcluded([]);
+      setSummary(undefined);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : String(requestError));
       setSendable([]);
@@ -130,6 +157,7 @@ export default function RundmailPage() {
     setSending(true);
     setError(null);
     setSendMessage(null);
+    setPdfUrl(null);
 
     try {
       const formData = new FormData();
@@ -140,34 +168,22 @@ export default function RundmailPage() {
       formData.set("subject", subject);
       formData.set("content", content);
       if (skipPdfDownload) formData.set("skipPdfDownload", "1");
-      for (const attachment of attachments) formData.append("attachments", attachment);
+      for (const attachment of attachments) formData.append("attachments", attachment.file);
 
       const res = await fetch("/api/rundmail/send", {
         method: "POST",
         body: formData,
       });
       const json = await res.json().catch(() => ({} as SendResponse));
+
       if (!res.ok) {
-        throw new Error(json.error || res.statusText);
+        setError(json.error || res.statusText);
+        return;
       }
 
       const failureSummary = json.failed ? `, Fehler: ${json.failed}` : "";
       setSendMessage(`Versand abgeschlossen. Versucht: ${json.attempted || 0}, versendet: ${json.sent || 0}${failureSummary}`);
-
-      if (!skipPdfDownload && json.pdfUrl) {
-        const pdfRes = await fetch(json.pdfUrl, { cache: "no-store" });
-        if (pdfRes.ok) {
-          const blob = await pdfRes.blob();
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = `rundmail-${json.mailId || "versand"}.pdf`;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          window.setTimeout(() => URL.revokeObjectURL(url), 2000);
-        }
-      }
+      setPdfUrl(json.pdfUrl || null);
 
       setSubject("");
       setContent("");
@@ -312,13 +328,8 @@ export default function RundmailPage() {
 
           <label className="block">
             <span className="mb-1 block text-sm font-medium">Inhalt</span>
-            <textarea
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              required
-              rows={12}
-              className="w-full rounded border border-black/10 dark:border-white/20 px-3 py-2 bg-background text-foreground"
-            />
+            <RichTextEditor value={content} onChange={setContent} />
+            <input type="hidden" value={content} required readOnly />
           </label>
 
           <label className="block">
@@ -327,14 +338,24 @@ export default function RundmailPage() {
               key={fileInputKey}
               type="file"
               multiple
-              onChange={(event) => setAttachments(Array.from(event.target.files || []))}
+              onChange={(event) => addAttachments(event.target.files)}
               className="block w-full text-sm"
             />
             {!!attachments.length && (
-              <ul className="mt-2 space-y-1 text-xs text-foreground/70">
+              <ul className="mt-2 space-y-2 text-xs text-foreground/70">
                 {attachments.map((attachment) => (
-                  <li key={`${attachment.name}-${attachment.size}-${attachment.lastModified}`}>
-                    {attachment.name} ({Math.max(1, Math.round(attachment.size / 1024))} KB)
+                  <li key={attachment.id} className="flex items-center justify-between gap-3 rounded border border-black/10 dark:border-white/10 px-2 py-1">
+                    <span>
+                      {attachment.file.name} ({Math.max(1, Math.round(attachment.file.size / 1024))} KB)
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`${attachment.file.name} entfernen`}
+                      onClick={() => removeAttachment(attachment.id)}
+                      className="rounded px-2 py-0.5 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+                    >
+                      ×
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -352,14 +373,22 @@ export default function RundmailPage() {
           </label>
         </div>
 
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-4 text-sm flex-wrap">
           <button
             type="submit"
             disabled={sending || !sendable.length}
-            className="px-3 py-1 rounded border border-black/10 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50"
+            className="px-5 py-3 text-base font-semibold rounded-md border-2 border-black/30 dark:border-white/40 shadow-sm hover:bg-black/10 dark:hover:bg-white/15 disabled:opacity-50"
           >
             {sending ? "Versand läuft…" : "Rundmail senden"}
           </button>
+          {pdfUrl && !skipPdfDownload && (
+            <a
+              href={pdfUrl}
+              className="px-5 py-3 text-base font-semibold rounded-md border-2 border-black/30 dark:border-white/40 shadow-sm hover:bg-black/10 dark:hover:bg-white/15"
+            >
+              Versandbestätigung als PDF herunterladen
+            </a>
+          )}
           {loadingPreview && <span>Empfänger werden aktualisiert…</span>}
           {error && <span className="text-red-600">{error}</span>}
           {sendMessage && <span className="text-foreground/70">{sendMessage}</span>}

@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import type { PreparedAttachment } from "@/lib/rundmail/attachments";
+import { rundmailHtmlToText, sanitizeRundmailHtml } from "@/lib/rundmail/content";
 
 interface MailSender {
   email: string | null;
@@ -39,6 +40,9 @@ function getTransporter(): Promise<Transporter> {
         host: getRequiredEnv("SMTP_HOST"),
         port: Number(process.env.SMTP_PORT || 587),
         secure: parseBoolean(process.env.SMTP_SECURE, false),
+        pool: true,
+        maxConnections: Number(process.env.SMTP_MAX_CONNECTIONS || 5),
+        maxMessages: Number(process.env.SMTP_MAX_MESSAGES || 100),
         auth: {
           user: getRequiredEnv("SMTP_USER"),
           pass: getRequiredEnv("SMTP_PASS"),
@@ -48,19 +52,6 @@ function getTransporter(): Promise<Transporter> {
   }
 
   return transporterPromise;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function asHtml(content: string): string {
-  return escapeHtml(content).replace(/\r?\n/g, "<br />");
 }
 
 function extractAddress(fromValue: string): string {
@@ -85,6 +76,8 @@ export async function sendRundmail(params: SendRundmailParams): Promise<void> {
   const replyTo = senderEmail
     ? (senderReplyName ? { name: senderReplyName, address: senderEmail } : senderEmail)
     : undefined;
+  const html = sanitizeRundmailHtml(params.content);
+  const text = rundmailHtmlToText(html);
 
   await transporter.sendMail({
     from: {
@@ -94,8 +87,8 @@ export async function sendRundmail(params: SendRundmailParams): Promise<void> {
     to: params.to,
     replyTo,
     subject: params.subject,
-    text: params.content,
-    html: `<div>${asHtml(params.content)}</div>`,
+    text,
+    html: html || "<p>(kein Inhalt)</p>",
     attachments: params.attachments.map((attachment) => ({
       filename: attachment.fileName,
       content: attachment.buffer,
@@ -103,4 +96,3 @@ export async function sendRundmail(params: SendRundmailParams): Promise<void> {
     })),
   });
 }
-

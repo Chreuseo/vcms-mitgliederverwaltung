@@ -14,13 +14,16 @@
     "@prisma/client": "^6.15.0",
     "@types/formidable": "^3.4.5",
     "formidable": "^3.5.4",
+    "html-to-text": "^10.0.0",
     "jwt-decode": "^4.0.0",
     "next": "^15.5.2",
     "next-auth": "^4.24.11",
     "nodemailer": "^7.0.13",
     "pdf-lib": "^1.17.1",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-quill-new": "^3.8.3",
+    "sanitize-html": "^2.17.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -29,6 +32,7 @@
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sanitize-html": "^2.16.1",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
     "prisma": "^6.15.0",

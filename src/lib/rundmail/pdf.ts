@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { rundmailHtmlToPdfText } from "@/lib/rundmail/content";
 
 interface PdfRecipient {
   displayName: string;
@@ -155,7 +156,7 @@ export async function generateRundmailPdf(data: RundmailPdfData): Promise<Uint8A
     font: bold,
   });
   cursor = { ...cursor, y: cursor.y - 22 };
-  cursor = drawTextBlock(doc, cursor, regular, data.content);
+  cursor = drawTextBlock(doc, cursor, regular, rundmailHtmlToPdfText(data.content));
 
   cursor = ensureSpace(doc, { ...cursor, y: cursor.y - 10 }, 2);
   cursor.page.drawText("Empfängerliste", {
@@ -173,4 +174,3 @@ export async function generateRundmailPdf(data: RundmailPdfData): Promise<Uint8A
 
   return doc.save();
 }
-
