@@ -72,6 +72,10 @@ export default function RundmailPage() {
   const [skipPdfDownload, setSkipPdfDownload] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [showFilterBox, setShowFilterBox] = useState(true);
+  const [showTechnicalDetailsBox, setShowTechnicalDetailsBox] = useState(false);
+  const [batchSize, setBatchSize] = useState("1");
+  const [hideRecipients, setHideRecipients] = useState(false);
+  const [delayMs, setDelayMs] = useState("0");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +172,9 @@ export default function RundmailPage() {
       formData.set("subject", subject);
       formData.set("content", content);
       if (skipPdfDownload) formData.set("skipPdfDownload", "1");
+      formData.set("batchSize", batchSize);
+      if (hideRecipients) formData.set("hideRecipients", "1");
+      formData.set("delayMs", delayMs);
       for (const attachment of attachments) formData.append("attachments", attachment.file);
 
       const res = await fetch("/api/rundmail/send", {
@@ -309,6 +316,55 @@ export default function RundmailPage() {
                 Anwenden
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-md">
+        <button
+          type="button"
+          onClick={() => setShowTechnicalDetailsBox((open) => !open)}
+          className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium"
+        >
+          <span>Technische Details</span>
+          <span>{showTechnicalDetailsBox ? "−" : "+"}</span>
+        </button>
+
+        {showTechnicalDetailsBox && (
+          <div className="p-3 space-y-4 text-sm">
+            <label className="block">
+              <span className="font-semibold mb-1 block">Gruppierung (Empfänger pro Mail)</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={batchSize}
+                onChange={(event) => setBatchSize(event.target.value)}
+                className="w-full rounded border border-black/10 dark:border-white/20 px-3 py-2 bg-background text-foreground"
+              />
+            </label>
+
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={hideRecipients}
+                onChange={(event) => setHideRecipients(event.target.checked)}
+                className="accent-blue-600"
+              />
+              <span>Empfänger verstecken (BCC, sichtbarer Empfänger = Absenderadresse)</span>
+            </label>
+
+            <label className="block">
+              <span className="font-semibold mb-1 block">Verzögerung zwischen Mails (ms)</span>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={delayMs}
+                onChange={(event) => setDelayMs(event.target.value)}
+                className="w-full rounded border border-black/10 dark:border-white/20 px-3 py-2 bg-background text-foreground"
+              />
+            </label>
           </div>
         )}
       </div>

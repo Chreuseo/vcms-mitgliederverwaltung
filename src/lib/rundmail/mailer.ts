@@ -9,11 +9,12 @@ interface MailSender {
 }
 
 interface SendRundmailParams {
-  to: string;
+  to: string[];
   subject: string;
   content: string;
   attachments: PreparedAttachment[];
   sender: MailSender;
+  hideRecipients?: boolean;
 }
 
 let transporterPromise: Promise<Transporter> | null = null;
@@ -79,12 +80,15 @@ export async function sendRundmail(params: SendRundmailParams): Promise<void> {
   const html = sanitizeRundmailHtml(params.content);
   const text = rundmailHtmlToText(html);
 
+  const hideRecipients = params.hideRecipients ?? false;
+  const visibleRecipient = fromAddress;
   await transporter.sendMail({
     from: {
       name: fromName,
       address: fromAddress,
     },
-    to: params.to,
+    to: hideRecipients ? visibleRecipient : params.to,
+    bcc: hideRecipients ? params.to : undefined,
     replyTo,
     subject: params.subject,
     text,

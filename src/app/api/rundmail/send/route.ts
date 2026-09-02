@@ -18,6 +18,20 @@ function parseBoolean(value: string): boolean {
   return value === "1" || value.toLowerCase() === "true" || value.toLowerCase() === "on";
 }
 
+function parsePositiveInt(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseNonNegativeInt(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function truncateError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return message.slice(0, 1000);
@@ -44,6 +58,11 @@ export async function POST(req: NextRequest) {
     const content = getString(formData, "content");
     const excludeRegex = getString(formData, "excludeRegex");
     const skipPdfDownload = parseBoolean(getString(formData, "skipPdfDownload"));
+    const batchSize = parsePositiveInt(getString(formData, "batchSize"), Number(process.env.RUNDMAIL_BATCH_SIZE || "1"));
+    const hideRecipients = parseBoolean(
+      getString(formData, "hideRecipients") || process.env.RUNDMAIL_HIDE_RECIPIENTS || "true",
+    );
+    const delayMs = parseNonNegativeInt(getString(formData, "delayMs"), Number(process.env.RUNDMAIL_DELAY_MS || "0"));
 
     if (!subject) return NextResponse.json({ error: "Betreff fehlt" }, { status: 400 });
     if (!content) return NextResponse.json({ error: "Inhalt fehlt" }, { status: 400 });
@@ -95,37 +114,49 @@ export async function POST(req: NextRequest) {
       errorMessage: string | null;
     }> = [];
 
-    for (const recipient of recipientsResult.sendable) {
+    for (let index = 0; index < recipientsResult.sendable.length; index += batchSize) {
+      const batch = recipientsResult.sendable.slice(index, index + batchSize);
+      const recipientAddresses = batch.map((recipient) => recipient.email);
       try {
         await sendRundmail({
-          to: recipient.email,
+          to: recipientAddresses,
           subject,
           content,
           attachments,
           sender: { email: sender.email, name: sender.name, username: sender.username },
+          hideRecipients,
         });
 
-        sent += 1;
-        recipientRows.push({
-          rundmailId: mail.id,
-          personId: recipient.id,
-          email: recipient.email,
-          recipientName: recipient.displayName,
-          deliveryStatus: "sent",
-          errorMessage: null,
-        });
+        for (const recipient of batch) {
+          sent += 1;
+          recipientRows.push({
+            rundmailId: mail.id,
+            personId: recipient.id,
+            email: recipient.email,
+            recipientName: recipient.displayName,
+            deliveryStatus: "sent",
+            errorMessage: null,
+          });
+        }
       } catch (error) {
-        failed += 1;
         const message = truncateError(error);
-        failures.push({ recipientId: recipient.id, email: recipient.email, error: message });
-        recipientRows.push({
-          rundmailId: mail.id,
-          personId: recipient.id,
-          email: recipient.email,
-          recipientName: recipient.displayName,
-          deliveryStatus: "failed",
-          errorMessage: message,
-        });
+        for (const recipient of batch) {
+          failed += 1;
+          failures.push({ recipientId: recipient.id, email: recipient.email, error: message });
+          recipientRows.push({
+            rundmailId: mail.id,
+            personId: recipient.id,
+            email: recipient.email,
+            recipientName: recipient.displayName,
+            deliveryStatus: "failed",
+            errorMessage: message,
+          });
+        }
+      }
+
+      const hasNextBatch = index + batchSize < recipientsResult.sendable.length;
+      if (hasNextBatch && delayMs > 0) {
+        await wait(delayMs);
       }
     }
 
