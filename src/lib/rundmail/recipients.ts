@@ -28,6 +28,8 @@ export interface RundmailRecipientsResult {
   };
 }
 
+const ENV_EXCLUDE_REGEX_SEPARATOR = "|";
+
 function normalizeString(value: string | null | undefined): string {
   return (value || "").trim();
 }
@@ -49,8 +51,23 @@ export function compileExcludeRegex(source: string | null | undefined): RegExp |
   return new RegExp(trimmed, "i");
 }
 
+function getEnvExcludeRegexParts(): string[] {
+  return (process.env.RUNDMAIL_EXCLUDE_REGEXES || "")
+    .split(ENV_EXCLUDE_REGEX_SEPARATOR)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function buildCombinedExcludeRegexSource(source: string | null | undefined): string | null {
+  const sources = [...getEnvExcludeRegexParts()];
+  const trimmed = (source || "").trim();
+  if (trimmed) sources.push(trimmed);
+  return sources.length ? sources.join("|") : null;
+}
+
 export async function findRundmailRecipients(filters: MitgliederFilters, excludeRegexSource?: string | null): Promise<RundmailRecipientsResult> {
-  const regex = compileExcludeRegex(excludeRegexSource);
+  const combinedRegexSource = buildCombinedExcludeRegexSource(excludeRegexSource);
+  const regex = compileExcludeRegex(combinedRegexSource);
   const rows = await prisma.basePerson.findMany({
     where: buildMitgliederWhere(filters),
     select: {
@@ -101,7 +118,7 @@ export async function findRundmailRecipients(filters: MitgliederFilters, exclude
   const excluded = recipients.filter((recipient) => recipient.excluded);
 
   return {
-    regexSource: (excludeRegexSource || "").trim() || null,
+    regexSource: combinedRegexSource,
     recipients,
     sendable,
     excluded,

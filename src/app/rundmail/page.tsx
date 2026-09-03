@@ -297,6 +297,9 @@ export default function RundmailPage() {
               <span className="mt-1 block text-xs text-foreground/60">
                 Passende E-Mail-Adressen werden aus der Vorschau und aus dem Versand ausgeschlossen.
               </span>
+              <span className="mt-1 block text-xs text-foreground/60">
+                Zusätzlich werden Ausdrücke aus <code>RUNDMAIL_EXCLUDE_REGEXES</code> automatisch angewendet; mehrere Einträge werden mit Bindestrichen getrennt.
+              </span>
             </label>
 
             <div className="flex gap-3">
